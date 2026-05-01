@@ -20,29 +20,6 @@ import {
   type FinanceItem,
 } from "@/lib/finance-api";
 
-const features = [
-  {
-    icon: Wallet,
-    title: "Keuangan Transparan",
-    text: "Ringkasan pemasukan, pengeluaran, saldo, dan laporan publik yang mudah dipahami jamaah.",
-  },
-  {
-    icon: HeartHandshake,
-    title: "Program Donasi Aktif",
-    text: "Program infaq, bantuan, renovasi, Ramadhan, dan Qurban tampil lebih rapi dan mudah diakses.",
-  },
-  {
-    icon: Newspaper,
-    title: "Portal Berita Masjid",
-    text: "Pengumuman, kajian, dan agenda masjid dapat dipublikasikan dengan tampilan yang modern.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Pengelolaan Lebih Mudah",
-    text: "Dirancang agar mudah digunakan pengurus untuk mengelola informasi masjid secara teratur.",
-  },
-];
-
 const fallbackQuotes = [
   {
     type: "Ayat Hari Ini",
@@ -282,7 +259,11 @@ export default function Home() {
 
         setDailyQuote({
           type: "Ayat Hari Ini",
-          source: `QS. ${arabicEdition?.surah?.englishName || indonesianEdition?.surah?.englishName || "Al-Qur'an"}: ${arabicEdition?.numberInSurah || indonesianEdition?.numberInSurah || ""}`,
+          source: `QS. ${
+            arabicEdition?.surah?.englishName ||
+            indonesianEdition?.surah?.englishName ||
+            "Al-Qur'an"
+          }: ${arabicEdition?.numberInSurah || indonesianEdition?.numberInSurah || ""}`,
           arabic: arabicEdition?.text || "",
           translation: indonesianEdition?.text || "",
         });
@@ -391,7 +372,7 @@ export default function Home() {
             <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#program">
               Program
             </a>
-            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#keuangan">
+            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="/keuangan">
               Keuangan
             </a>
             <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#kontak">
@@ -704,12 +685,6 @@ export default function Home() {
                     Menampilkan 3 kategori keuangan utama yang tersinkron langsung dari Google Spreadsheet.
                   </p>
                 </div>
-
-                <a href="/keuangan">
-                  <Button className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
-                    Lihat Detail
-                  </Button>
-                </a>
               </div>
 
               {financeError ? (
@@ -747,13 +722,6 @@ export default function Home() {
                   Silakan akses website untuk mengikuti perkembangan program, membaca pengumuman,
                   dan melihat informasi terbaru dari Langgar Kidoel.
                 </p>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <a href="/keuangan">
-                  <Button className="rounded-2xl bg-emerald-600 px-6 py-6 text-base font-semibold hover:bg-emerald-700">
-                    Lihat Keuangan
-                  </Button>
-                </a>
               </div>
             </div>
           </div>
