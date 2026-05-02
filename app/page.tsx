@@ -1415,103 +1415,90 @@ export default function HomePage() {
           </div>
 
           <div className="mt-8 grid gap-6 xl:grid-cols-3">
-            {bucketSummaries.map((bucket) => {
-  const latestDonor = bucket.recent.find(
-    (item) => item.type === "masuk" && item.donor && item.donor.trim() !== ""
-  );
+            {bucketSummaries.map((bucket) => (
+              <div
+                key={bucket.key}
+                className="rounded-[28px] bg-white/10 p-5 backdrop-blur-md"
+              >
+                <h4 className="text-[32px] font-bold leading-tight text-white">
+                  {bucket.label}
+                </h4>
+                <p className="mt-2 text-[15px] text-white/80">
+                  {bucket.recent.length} transaksi terbaru
+                </p>
 
-  return (
-    <div
-      key={bucket.key}
-      className="rounded-[28px] bg-white/10 p-5 backdrop-blur-md"
-    >
-      <h4 className="text-[32px] font-bold leading-tight text-white">
-        {bucket.label}
-      </h4>
-      <p className="mt-2 text-[15px] text-white/80">
-        {bucket.recent.length} transaksi terbaru
-      </p>
-
-      <div className="mt-5 grid gap-3">
-        <div className="rounded-2xl bg-white/10 p-4">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
-            Masuk
-          </p>
-          <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
-            {formatRupiah(bucket.incoming)}
-          </p>
-
-          {latestDonor ? (
-            <p className="mt-2 text-[13px] leading-5 text-white/75">
-              Donatur:{" "}
-              <span className="font-semibold text-white">{latestDonor.donor}</span>
-            </p>
-          ) : null}
-        </div>
-
-        <div className="rounded-2xl bg-white/10 p-4">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
-            Keluar
-          </p>
-          <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
-            {formatRupiah(bucket.outgoing)}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-white/10 p-4">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
-            Saldo
-          </p>
-          <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
-            {formatRupiah(bucket.balance)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 space-y-3">
-        {bucket.recent.length === 0 ? (
-          <div className="rounded-2xl bg-white/10 p-4 text-[15px] text-white/80">
-            Belum ada data transaksi.
-          </div>
-        ) : (
-          bucket.recent.slice(0, 3).map((item) => (
-            <div key={item.id} className="rounded-2xl bg-white/10 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-[13px] text-white/70">
-                    {formatShortDate(item.date)}
+                <div className="mt-5 grid gap-3">
+                  <div className="rounded-2xl bg-white/10 p-4">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                      Masuk
+                    </p>
+                    <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
+                      {formatRupiah(bucket.incoming)}
+                    </p>
                   </div>
-                  <div className="mt-1 text-[15px] font-semibold leading-6 text-white">
-                    {item.description}
+                  <div className="rounded-2xl bg-white/10 p-4">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                      Keluar
+                    </p>
+                    <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
+                      {formatRupiah(bucket.outgoing)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-4">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                      Saldo
+                    </p>
+                    <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
+                      {formatRupiah(bucket.balance)}
+                    </p>
                   </div>
                 </div>
 
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
-                    item.type === "masuk"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-rose-100 text-rose-700"
-                  }`}
-                >
-                  {item.type === "masuk" ? "Kas Masuk" : "Kas Keluar"}
-                </span>
-              </div>
+                <div className="mt-5 space-y-3">
+                  {bucket.recent.length === 0 ? (
+                    <div className="rounded-2xl bg-white/10 p-4 text-[15px] text-white/80">
+                      Belum ada data transaksi.
+                    </div>
+                  ) : (
+                    bucket.recent.slice(0, 3).map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl bg-white/10 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-[13px] text-white/70">
+                              {formatShortDate(item.date)}
+                            </div>
+                            <div className="mt-1 text-[15px] font-semibold leading-6 text-white">
+                              {item.description}
+                            </div>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
+                              item.type === "masuk"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-rose-100 text-rose-700"
+                            }`}
+                          >
+                            {item.type === "masuk" ? "Kas Masuk" : "Kas Keluar"}
+                          </span>
+                        </div>
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-[13px] text-white/70">
-                  {item.donor ? `Donatur: ${item.donor}` : "Transaksi"}
-                </div>
-                <div className="text-[16px] font-bold text-white">
-                  {formatRupiah(item.amount)}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-[13px] text-white/70">
+                            {item.donor ? `Donatur: ${item.donor}` : "Transaksi"}
+                          </div>
+                          <div className="text-[16px] font-bold text-white">
+                            {formatRupiah(item.amount)}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-})}
+            ))}
           </div>
         </div>
       </section>
