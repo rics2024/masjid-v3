@@ -1,80 +1,297 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
+  CalendarDays,
+  Clock3,
   HeartHandshake,
+  Landmark,
+  Mail,
+  MapPin,
   Menu,
-  MoonStar,
   Newspaper,
-  ShieldCheck,
-  Smartphone,
-  Wallet,
+  Phone,
+  X,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  fetchFinanceItems,
-  formatRupiah,
-  type FinanceBucket,
-  type FinanceItem,
-} from "@/lib/finance-api";
 
-const fallbackQuotes = [
+type FinanceBucket = "kasMasjid" | "kasPembangunan" | "kasAnakYatim";
+type FinanceType = "masuk" | "keluar";
+
+type FinanceItem = {
+  id: string;
+  tanggal: string;
+  bucket: FinanceBucket;
+  type: FinanceType;
+  keterangan: string;
+  jumlah: number;
+  donatur?: string;
+};
+
+type PrayerTimes = {
+  Subuh: string;
+  Dzuhur: string;
+  Ashar: string;
+  Maghrib: string;
+  Isya: string;
+  Terbit: string;
+};
+
+type QuoteItem = {
+  type: "ayat" | "hadis";
+  arabic: string;
+  translation: string;
+  source: string;
+};
+
+type FridayKhutbahItem = {
+  tanggalHijriah: string;
+  tanggalMasehi: string;
+  khotib: string;
+  bilal: string;
+  judulKhutbah: string;
+};
+
+type ArticleItem = {
+  id: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  date: string;
+  author?: string;
+  image?: string;
+  isPublished?: boolean;
+};
+
+const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL || "";
+
+const HERO_BG =
+  "https://images.unsplash.com/photo-1564769625392-651b1c67d2f4?auto=format&fit=crop&w=1600&q=80";
+
+const featuredProgramTarget = 50_000_000;
+
+const fallbackFridayKhutbahInfo: FridayKhutbahItem = {
+  tanggalHijriah: "19 Muharram 1448 H",
+  tanggalMasehi: "Jumat, 8 Mei 2026",
+  khotib: "Ust. Ahmad Fauzi",
+  bilal: "Muhammad Rizki",
+  judulKhutbah: "Memakmurkan Masjid dan Menjaga Ukhuwah Jamaah",
+};
+
+const programs = [
   {
-    type: "Ayat Hari Ini",
-    source: "QS. Al-Baqarah: 152",
-    arabic: "فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ",
-    translation:
-      "Maka ingatlah kepada-Ku, Aku pun akan ingat kepadamu. Bersyukurlah kepada-Ku, dan janganlah kamu ingkar kepada-Ku.",
+    title: "Renovasi Langgar Kidoel",
+    description:
+      "Program perbaikan area wudhu, perawatan bangunan, dan peningkatan fasilitas ibadah jamaah.",
+    terkumpul: 10_000_000,
+    target: 50_000_000,
+    status: "Berjalan",
   },
   {
-    type: "Ayat Hari Ini",
-    source: "QS. Ar-Ra'd: 28",
-    arabic: "أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ",
-    translation:
-      "Ingatlah, hanya dengan mengingat Allah hati menjadi tenteram.",
+    title: "Santunan Anak Yatim",
+    description:
+      "Bantuan rutin untuk anak yatim dan dhuafa di sekitar lingkungan Langgar Kidoel.",
+    terkumpul: 3_000_000,
+    target: 15_000_000,
+    status: "Aktif",
   },
   {
-    type: "Ayat Hari Ini",
-    source: "QS. At-Talaq: 3",
-    arabic: "وَمَنْ يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ",
-    translation:
-      "Dan barang siapa bertawakal kepada Allah, niscaya Allah akan mencukupkan keperluannya.",
+    title: "Beasiswa Tahfidz",
+    description:
+      "Dukungan pendidikan untuk santri penghafal Al-Qur'an agar lebih fokus belajar.",
+    terkumpul: 12_000_000,
+    target: 50_000_000,
+    status: "Aktif",
   },
 ];
 
-const STATIC_PROGRAM_COUNT = 4;
-const STATIC_NEWS_COUNT = 12;
-const PEMBANGUNAN_TARGET = 50_000_000;
-const TOTAL_QURAN_AYAHS = 6236;
+const latestNews = [
+  {
+    title: "Kajian Subuh Ahad bersama Ustadz Ahmad",
+    category: "Kajian",
+    date: "Ahad, 21 April 2026",
+  },
+  {
+    title: "Laporan Keuangan Triwulan Pertama telah terbit",
+    category: "Pengumuman",
+    date: "Senin, 19 April 2026",
+  },
+  {
+    title: "Pendaftaran Peserta Qurban resmi dibuka",
+    category: "Qurban",
+    date: "Rabu, 17 April 2026",
+  },
+];
 
-type PrayerTimes = {
-  Fajr: string;
-  Dhuhr: string;
-  Asr: string;
-  Maghrib: string;
-  Isha: string;
-  Sunrise?: string;
+const dailyQuotes: QuoteItem[] = [
+  {
+    type: "ayat",
+    arabic:
+      "وَأَنَّ الْمَسَاجِدَ لِلَّهِ فَلَا تَدْعُوا مَعَ اللَّهِ أَحَدًا",
+    translation:
+      "Dan sesungguhnya masjid-masjid itu adalah milik Allah, maka janganlah kamu menyembah seseorang pun di dalamnya selain Allah.",
+    source: "QS. Al-Jinn: 18",
+  },
+  {
+    type: "hadis",
+    arabic:
+      "مَنْ بَنَى مَسْجِدًا لِلَّهِ بَنَى اللَّهُ لَهُ بَيْتًا فِي الْجَنَّةِ",
+    translation:
+      "Barang siapa membangun masjid karena Allah, maka Allah akan bangunkan baginya rumah di surga.",
+    source: "HR. Bukhari dan Muslim",
+  },
+  {
+    type: "ayat",
+    arabic:
+      "إِنَّمَا يَعْمُرُ مَسَاجِدَ اللَّهِ مَنْ آمَنَ بِاللَّهِ وَالْيَوْمِ الْآخِرِ",
+    translation:
+      "Sesungguhnya yang memakmurkan masjid-masjid Allah hanyalah orang-orang yang beriman kepada Allah dan hari kemudian.",
+    source: "QS. At-Taubah: 18",
+  },
+  {
+    type: "hadis",
+    arabic: "أَحَبُّ الْبِلَادِ إِلَى اللَّهِ مَسَاجِدُهَا",
+    translation:
+      "Tempat yang paling dicintai Allah di suatu negeri adalah masjid-masjidnya.",
+    source: "HR. Muslim",
+  },
+];
+
+const fallbackArticles: ArticleItem[] = [
+  {
+    id: "1",
+    title: "Kajian Subuh Ahad Bersama Ustadz Ahmad",
+    excerpt:
+      "Kajian rutin Ahad pagi membahas pentingnya menjaga shalat berjamaah dan adab di masjid.",
+    category: "Kajian",
+    date: "2026-05-01",
+    author: "Admin",
+    image:
+      "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=800&q=80",
+    isPublished: true,
+  },
+  {
+    id: "2",
+    title: "Program Santunan Anak Yatim Bulan Ini Dibuka",
+    excerpt:
+      "Jamaah dapat ikut berpartisipasi dalam program santunan anak yatim melalui donasi langsung ke masjid.",
+    category: "Sosial",
+    date: "2026-04-28",
+    author: "Admin",
+    image:
+      "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=800&q=80",
+    isPublished: true,
+  },
+];
+
+const fallbackFinanceItems: FinanceItem[] = [
+  {
+    id: "1",
+    tanggal: "2026-04-29",
+    bucket: "kasMasjid",
+    type: "masuk",
+    keterangan: "Infaq Jumat",
+    jumlah: 5_000_000,
+  },
+  {
+    id: "2",
+    tanggal: "2026-04-26",
+    bucket: "kasMasjid",
+    type: "keluar",
+    keterangan: "Pembelian alat kebersihan",
+    jumlah: 300_000,
+  },
+  {
+    id: "3",
+    tanggal: "2026-04-28",
+    bucket: "kasPembangunan",
+    type: "masuk",
+    keterangan: "Donasi pembangunan",
+    jumlah: 10_000_000,
+    donatur: "Ahmad Fauzi",
+  },
+  {
+    id: "4",
+    tanggal: "2026-04-17",
+    bucket: "kasAnakYatim",
+    type: "masuk",
+    keterangan: "Santunan jamaah",
+    jumlah: 3_000_000,
+    donatur: "Siti Aminah",
+  },
+  {
+    id: "5",
+    tanggal: "2026-04-24",
+    bucket: "kasMasjid",
+    type: "masuk",
+    keterangan: "Infaq kotak amal",
+    jumlah: 1_500_000,
+  },
+  {
+    id: "6",
+    tanggal: "2026-04-20",
+    bucket: "kasMasjid",
+    type: "keluar",
+    keterangan: "Bayar listrik",
+    jumlah: 1_200_000,
+  },
+  {
+    id: "7",
+    tanggal: "2026-04-21",
+    bucket: "kasPembangunan",
+    type: "masuk",
+    keterangan: "Donasi renovasi",
+    jumlah: 2_000_000,
+    donatur: "Hamba Allah",
+  },
+  {
+    id: "8",
+    tanggal: "2026-04-19",
+    bucket: "kasAnakYatim",
+    type: "masuk",
+    keterangan: "Infaq sosial",
+    jumlah: 750_000,
+    donatur: "Muhammad Rizki",
+  },
+];
+
+const fallbackPrayerTimes: PrayerTimes = {
+  Subuh: "04:34",
+  Dzuhur: "11:50",
+  Ashar: "15:12",
+  Maghrib: "17:47",
+  Isya: "18:58",
+  Terbit: "05:53",
 };
 
-type DailyQuote = {
-  type: string;
-  source: string;
-  arabic: string;
-  translation: string;
-};
+function formatRupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
-type FinancePanelProps = {
-  title: string;
-  bucket: FinanceBucket;
-  items: FinanceItem[];
-};
+function shortRupiah(value: number) {
+  if (value >= 1_000_000_000) {
+    return `Rp ${(value / 1_000_000_000).toFixed(1).replace(".", ",")} M`;
+  }
+  if (value >= 1_000_000) {
+    return `Rp ${(value / 1_000_000).toFixed(1).replace(".", ",")} Jt`;
+  }
+  return formatRupiah(value);
+}
 
-function formatShortDate(dateString: string) {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return dateString;
+function formatDate(dateStr: string) {
+  if (!dateStr) return "-";
+
+  const cleaned = dateStr.includes("/")
+    ? dateStr.split("/").reverse().join("-")
+    : dateStr;
+
+  const date = new Date(cleaned);
+  if (Number.isNaN(date.getTime())) return dateStr;
+
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "2-digit",
@@ -82,706 +299,1231 @@ function formatShortDate(dateString: string) {
   }).format(date);
 }
 
-function stripTime(value?: string) {
-  if (!value) return "-";
-  return value.split(" ")[0];
+function parseAmount(value: unknown) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return 0;
+  const normalized = value.replace(/[^\d-]/g, "");
+  return Number(normalized) || 0;
 }
 
-function getAyahNumberOfTheDay() {
+function detectBucket(value: string): FinanceBucket {
+  const v = value.toLowerCase();
+  if (v.includes("pembangunan")) return "kasPembangunan";
+  if (v.includes("anak yatim") || v.includes("yatim")) return "kasAnakYatim";
+  return "kasMasjid";
+}
+
+function detectType(value: string): FinanceType {
+  const v = value.toLowerCase();
+  if (v.includes("keluar") || v.includes("pengeluaran")) return "keluar";
+  return "masuk";
+}
+
+function normalizeFinanceRows(raw: unknown): FinanceItem[] {
+  if (!raw) return [];
+
+  const normalized: FinanceItem[] = [];
+
+  const pushItem = (item: any, forcedBucket?: FinanceBucket) => {
+    const bucket = forcedBucket
+      ? forcedBucket
+      : detectBucket(
+          String(
+            item.bucket ||
+              item.kategori ||
+              item.kas ||
+              item.sheet ||
+              item.jenisKas ||
+              "kas masjid"
+          )
+        );
+
+    const type = detectType(
+      String(item.type || item.jenis || item.arus || item.status || "masuk")
+    );
+
+    normalized.push({
+      id: String(item.id || item.ID || crypto.randomUUID()),
+      tanggal: String(item.tanggal || item.date || item.created_at || ""),
+      bucket,
+      type,
+      keterangan: String(
+        item.keterangan || item.judul || item.deskripsi || "Transaksi"
+      ),
+      jumlah: parseAmount(item.jumlah || item.nominal || item.amount || 0),
+      donatur: item.donatur ? String(item.donatur) : undefined,
+    });
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => pushItem(item));
+    return normalized;
+  }
+
+  if (typeof raw === "object" && raw !== null) {
+    const data = raw as Record<string, any>;
+
+    if (Array.isArray(data.items)) {
+      data.items.forEach((item) => pushItem(item));
+      return normalized;
+    }
+
+    if (Array.isArray(data.data)) {
+      data.data.forEach((item) => pushItem(item));
+      return normalized;
+    }
+
+    if (Array.isArray(data.finance)) {
+      data.finance.forEach((item) => pushItem(item));
+      return normalized;
+    }
+
+    if (Array.isArray(data.transactions)) {
+      data.transactions.forEach((item) => pushItem(item));
+      return normalized;
+    }
+
+    if (Array.isArray(data.kasMasjid)) {
+      data.kasMasjid.forEach((item) => pushItem(item, "kasMasjid"));
+    }
+
+    if (Array.isArray(data.kasPembangunan)) {
+      data.kasPembangunan.forEach((item) => pushItem(item, "kasPembangunan"));
+    }
+
+    if (Array.isArray(data.kasAnakYatim)) {
+      data.kasAnakYatim.forEach((item) => pushItem(item, "kasAnakYatim"));
+    }
+  }
+
+  return normalized;
+}
+
+function sortByLatest<T extends { tanggal?: string; date?: string }>(items: T[]) {
+  return [...items].sort((a, b) => {
+    const da = new Date((a.tanggal || a.date || "") as string).getTime();
+    const db = new Date((b.tanggal || b.date || "") as string).getTime();
+    return db - da;
+  });
+}
+
+function getBucketSummary(items: FinanceItem[], bucket: FinanceBucket) {
+  const bucketItems = sortByLatest(items.filter((item) => item.bucket === bucket));
+  const totalMasuk = bucketItems
+    .filter((item) => item.type === "masuk")
+    .reduce((sum, item) => sum + item.jumlah, 0);
+
+  const totalKeluar = bucketItems
+    .filter((item) => item.type === "keluar")
+    .reduce((sum, item) => sum + item.jumlah, 0);
+
+  return {
+    totalMasuk,
+    totalKeluar,
+    saldo: totalMasuk - totalKeluar,
+    latest: bucketItems,
+  };
+}
+
+function getQuoteOfDay() {
   const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 1);
+  const start = new Date(now.getFullYear(), 0, 0);
   const diff = now.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / 86400000) + 1;
-  return ((dayOfYear - 1) % TOTAL_QURAN_AYAHS) + 1;
+  const day = Math.floor(diff / 86400000);
+  return dailyQuotes[day % dailyQuotes.length];
 }
 
-function FinancePanel({ title, bucket, items }: FinancePanelProps) {
-  const bucketItems = useMemo(() => {
-    return items
-      .filter((item) => item.bucket === bucket)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-  }, [items, bucket]);
+function getTodayLabel() {
+  const now = new Date();
+  return new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+}
 
-  const summary = useMemo(() => {
-    const income = bucketItems
-      .filter((item) => item.type === "kas_masuk" || item.type === "donasi")
-      .reduce((sum, item) => sum + item.amount, 0);
+function getProgressPercent(current: number, target: number) {
+  if (!target) return 0;
+  return Math.min(100, Math.round((current / target) * 100));
+}
 
-    const expense = bucketItems
-      .filter((item) => item.type === "kas_keluar")
-      .reduce((sum, item) => sum + item.amount, 0);
+type FinanceSectionCardProps = {
+  title: string;
+  summary: ReturnType<typeof getBucketSummary>;
+};
 
-    return {
-      income,
-      expense,
-      balance: income - expense,
-    };
-  }, [bucketItems]);
+function FinanceSectionCard({ title, summary }: FinanceSectionCardProps) {
+  const latestDesktop = summary.latest.slice(0, 5);
+  const latestMobile = summary.latest.slice(0, 3);
 
   return (
-    <div className="rounded-[28px] bg-white/10 p-5 ring-1 ring-white/10 backdrop-blur-sm">
+    <div className="rounded-[28px] border border-white/15 bg-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.15)] backdrop-blur">
       <div className="mb-4">
-        <h4 className="text-2xl font-black text-white">{title}</h4>
-        <p className="mt-2 text-sm text-white/75">5 transaksi terbaru</p>
+        <h3 className="text-2xl font-bold text-white">{title}</h3>
+        <p className="mt-1 text-sm text-emerald-50/85">Transaksi terbaru</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl bg-white/10 p-4">
-          <p className="text-xs uppercase tracking-wide text-white/70">Masuk</p>
-          <p className="mt-2 text-lg font-black">{formatRupiah(summary.income)}</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-50/80">
+            Masuk
+          </p>
+          <p className="mt-2 text-xl font-bold text-white sm:text-2xl">
+            {formatRupiah(summary.totalMasuk)}
+          </p>
         </div>
         <div className="rounded-2xl bg-white/10 p-4">
-          <p className="text-xs uppercase tracking-wide text-white/70">Keluar</p>
-          <p className="mt-2 text-lg font-black">{formatRupiah(summary.expense)}</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-50/80">
+            Keluar
+          </p>
+          <p className="mt-2 text-xl font-bold text-white sm:text-2xl">
+            {formatRupiah(summary.totalKeluar)}
+          </p>
         </div>
         <div className="rounded-2xl bg-white/10 p-4">
-          <p className="text-xs uppercase tracking-wide text-white/70">Saldo</p>
-          <p className="mt-2 text-lg font-black">{formatRupiah(summary.balance)}</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-50/80">
+            Saldo
+          </p>
+          <p className="mt-2 text-xl font-bold text-white sm:text-2xl">
+            {formatRupiah(summary.saldo)}
+          </p>
         </div>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-[22px] bg-black/10">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="bg-white/10 text-white/85">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Tanggal</th>
-              <th className="px-4 py-3 font-semibold">Kas Masuk</th>
-              <th className="px-4 py-3 font-semibold">Kas Keluar</th>
-              <th className="px-4 py-3 font-semibold">Keterangan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bucketItems.length > 0 ? (
-              bucketItems.map((item) => {
-                const isIncome =
-                  item.type === "kas_masuk" || item.type === "donasi";
-                const isExpense = item.type === "kas_keluar";
+      <div className="mt-5 space-y-3 sm:hidden">
+        {latestMobile.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">
+                  {formatDate(item.tanggal)}
+                </p>
+                <p className="mt-1 text-sm text-emerald-50/85">
+                  {item.keterangan}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    item.type === "masuk"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-rose-100 text-rose-700"
+                  }`}
+                >
+                  {item.type === "masuk" ? "Masuk" : "Keluar"}
+                </span>
+                <p className="mt-2 text-sm font-bold text-white">
+                  {formatRupiah(item.jumlah)}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
 
-                return (
-                  <tr key={item.id} className="border-t border-white/10">
-                    <td className="px-4 py-3 text-white/90">
-                      {formatShortDate(item.date)}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-emerald-100">
-                      {isIncome ? formatRupiah(item.amount) : "-"}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-rose-100">
-                      {isExpense ? formatRupiah(item.amount) : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-white/90">
-                      {item.title}
-                      {item.donorName ? ` - ${item.donorName}` : ""}
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr className="border-t border-white/10">
-                <td colSpan={4} className="px-4 py-4 text-white/70">
-                  Belum ada data.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {latestMobile.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/20 p-4 text-sm text-emerald-50/80">
+            Belum ada data transaksi.
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-5 hidden space-y-3 sm:block">
+        {latestDesktop.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">
+                  {formatDate(item.tanggal)}
+                </p>
+                <p className="mt-1 text-sm text-emerald-50/85">
+                  {item.keterangan}
+                </p>
+                {item.donatur ? (
+                  <p className="mt-1 text-xs text-emerald-100/70">
+                    Donatur: {item.donatur}
+                  </p>
+                ) : null}
+              </div>
+              <div className="shrink-0 text-right">
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    item.type === "masuk"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-rose-100 text-rose-700"
+                  }`}
+                >
+                  {item.type === "masuk" ? "Kas Masuk" : "Kas Keluar"}
+                </span>
+                <p className="mt-2 text-sm font-bold text-white">
+                  {formatRupiah(item.jumlah)}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {latestDesktop.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/20 p-4 text-sm text-emerald-50/80">
+            Belum ada data transaksi.
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-export default function Home() {
-  const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
-  const [financeLoading, setFinanceLoading] = useState(true);
-  const [financeError, setFinanceError] = useState("");
-
-  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
-  const [prayerLoading, setPrayerLoading] = useState(true);
-
-  const [dailyQuote, setDailyQuote] = useState<DailyQuote>(
-    fallbackQuotes[new Date().getDate() % fallbackQuotes.length]
+export default function HomePage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [financeItems, setFinanceItems] = useState<FinanceItem[]>(fallbackFinanceItems);
+  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes>(fallbackPrayerTimes);
+  const [todayQuote, setTodayQuote] = useState<QuoteItem>(dailyQuotes[0]);
+  const [loadingFinance, setLoadingFinance] = useState(true);
+  const [articles, setArticles] = useState<ArticleItem[]>(fallbackArticles);
+  const [fridayKhutbahInfo, setFridayKhutbahInfo] = useState<FridayKhutbahItem>(
+    fallbackFridayKhutbahInfo
   );
 
-  async function loadFinanceItems() {
-    try {
-      setFinanceLoading(true);
-      setFinanceError("");
-      const data = await fetchFinanceItems();
-      setFinanceItems(data);
-    } catch (error) {
-      console.error(error);
-      setFinanceError("Gagal mengambil data keuangan.");
-    } finally {
-      setFinanceLoading(false);
-    }
-  }
-
-  async function loadPrayerTimes() {
-    try {
-      setPrayerLoading(true);
-
-      const city = "Yogyakarta";
-      const country = "Indonesia";
-      const url =
-        `https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(city)}` +
-        `&country=${encodeURIComponent(country)}&method=20`;
-
-      const res = await fetch(url, { cache: "no-store" });
-      const json = await res.json();
-
-      if (json?.code === 200 && json?.data?.timings) {
-        setPrayerTimes({
-          Fajr: stripTime(json.data.timings.Fajr),
-          Dhuhr: stripTime(json.data.timings.Dhuhr),
-          Asr: stripTime(json.data.timings.Asr),
-          Maghrib: stripTime(json.data.timings.Maghrib),
-          Isha: stripTime(json.data.timings.Isha),
-          Sunrise: stripTime(json.data.timings.Sunrise),
-        });
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setPrayerLoading(false);
-    }
-  }
-
-  async function loadDailyQuote() {
-    try {
-      const ayahNumber = getAyahNumberOfTheDay();
-      const url = `https://api.alquran.cloud/v1/ayah/${ayahNumber}/editions/quran-uthmani,id.indonesian`;
-      const res = await fetch(url, { cache: "no-store" });
-      const json = await res.json();
-
-      if (json?.code === 200 && Array.isArray(json?.data) && json.data.length >= 2) {
-        const arabicEdition = json.data[0];
-        const indonesianEdition = json.data[1];
-
-        setDailyQuote({
-          type: "Ayat Hari Ini",
-          source: `QS. ${
-            arabicEdition?.surah?.englishName ||
-            indonesianEdition?.surah?.englishName ||
-            "Al-Qur'an"
-          }: ${arabicEdition?.numberInSurah || indonesianEdition?.numberInSurah || ""}`,
-          arabic: arabicEdition?.text || "",
-          translation: indonesianEdition?.text || "",
-        });
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
   useEffect(() => {
-    loadFinanceItems();
-    loadPrayerTimes();
-    loadDailyQuote();
+    setTodayQuote(getQuoteOfDay());
   }, []);
 
-  const overallSummary = useMemo(() => {
-    const income = financeItems
-      .filter((item) => item.type === "kas_masuk" || item.type === "donasi")
-      .reduce((sum, item) => sum + item.amount, 0);
+  useEffect(() => {
+    const fetchFinance = async () => {
+      try {
+        if (!GAS_URL) {
+          setFinanceItems(fallbackFinanceItems);
+          return;
+        }
 
-    const expense = financeItems
-      .filter((item) => item.type === "kas_keluar")
-      .reduce((sum, item) => sum + item.amount, 0);
+        const res = await fetch(GAS_URL, { cache: "no-store" });
+        const json = await res.json();
 
-    return {
-      income,
-      expense,
-      balance: income - expense,
+        const items = normalizeFinanceRows(json);
+        if (items.length > 0) {
+          setFinanceItems(items);
+        } else {
+          setFinanceItems(fallbackFinanceItems);
+        }
+      } catch (error) {
+        console.error("Gagal mengambil data keuangan:", error);
+        setFinanceItems(fallbackFinanceItems);
+      } finally {
+        setLoadingFinance(false);
+      }
     };
+
+    fetchFinance();
+  }, []);
+
+  useEffect(() => {
+    const fetchPrayerTimes = async () => {
+      try {
+        const res = await fetch(
+          "https://api.aladhan.com/v1/timingsByCity?city=Cirebon&country=Indonesia&method=11",
+          { cache: "no-store" }
+        );
+        const json = await res.json();
+
+        const timings = json?.data?.timings;
+        if (timings) {
+          setPrayerTimes({
+            Subuh: timings.Fajr || fallbackPrayerTimes.Subuh,
+            Dzuhur: timings.Dhuhr || fallbackPrayerTimes.Dzuhur,
+            Ashar: timings.Asr || fallbackPrayerTimes.Ashar,
+            Maghrib: timings.Maghrib || fallbackPrayerTimes.Maghrib,
+            Isya: timings.Isha || fallbackPrayerTimes.Isya,
+            Terbit: timings.Sunrise || fallbackPrayerTimes.Terbit,
+          });
+        }
+      } catch (error) {
+        console.error("Gagal mengambil jadwal shalat:", error);
+      }
+    };
+
+    fetchPrayerTimes();
+  }, []);
+
+  useEffect(() => {
+    const loadArticles = async () => {
+      try {
+        if (!GAS_URL) return;
+
+        const res = await fetch(`${GAS_URL}?action=getArticles`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+
+        const rawItems = Array.isArray(json?.data)
+          ? json.data
+          : Array.isArray(json?.articles)
+          ? json.articles
+          : [];
+
+        const normalized: ArticleItem[] = rawItems
+          .map((item: any) => ({
+            id: String(item.id || crypto.randomUUID()),
+            title: String(item.title || ""),
+            excerpt: String(item.excerpt || item.ringkasan || ""),
+            category: String(item.category || item.kategori || "Artikel"),
+            date: String(item.date || item.tanggal || ""),
+            author: item.author ? String(item.author) : "Admin",
+            image: item.image ? String(item.image) : "",
+            isPublished:
+              String(item.isPublished || item.publish || "TRUE").toLowerCase() ===
+              "true",
+          }))
+          .filter((item) => item.isPublished)
+          .sort(
+            (a, b) =>
+              new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+          .slice(0, 2);
+
+        if (normalized.length > 0) {
+          setArticles(normalized);
+        }
+      } catch (error) {
+        console.error("Gagal mengambil artikel:", error);
+      }
+    };
+
+    loadArticles();
+  }, []);
+
+  useEffect(() => {
+    const loadFridayKhutbah = async () => {
+      try {
+        if (!GAS_URL) return;
+
+        const res = await fetch(`${GAS_URL}?action=getFridayKhutbah`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+
+        const item =
+          json?.data ||
+          json?.item ||
+          (Array.isArray(json?.items) ? json.items[0] : null);
+
+        if (item) {
+          setFridayKhutbahInfo({
+            tanggalHijriah: String(
+              item.tanggalHijriah || item.hijriah || fallbackFridayKhutbahInfo.tanggalHijriah
+            ),
+            tanggalMasehi: String(
+              item.tanggalMasehi || item.masehi || fallbackFridayKhutbahInfo.tanggalMasehi
+            ),
+            khotib: String(item.khotib || fallbackFridayKhutbahInfo.khotib),
+            bilal: String(item.bilal || fallbackFridayKhutbahInfo.bilal),
+            judulKhutbah: String(
+              item.judulKhutbah || item.judul || fallbackFridayKhutbahInfo.judulKhutbah
+            ),
+          });
+        }
+      } catch (error) {
+        console.error("Gagal mengambil jadwal khotib Jumat:", error);
+      }
+    };
+
+    loadFridayKhutbah();
+  }, []);
+
+  const kasMasjidSummary = useMemo(
+    () => getBucketSummary(financeItems, "kasMasjid"),
+    [financeItems]
+  );
+
+  const kasPembangunanSummary = useMemo(
+    () => getBucketSummary(financeItems, "kasPembangunan"),
+    [financeItems]
+  );
+
+  const kasAnakYatimSummary = useMemo(
+    () => getBucketSummary(financeItems, "kasAnakYatim"),
+    [financeItems]
+  );
+
+  const totalPemasukan = useMemo(
+    () =>
+      financeItems
+        .filter((item) => item.type === "masuk")
+        .reduce((sum, item) => sum + item.jumlah, 0),
+    [financeItems]
+  );
+
+  const totalSaldo = useMemo(() => {
+    const totalMasuk = financeItems
+      .filter((item) => item.type === "masuk")
+      .reduce((sum, item) => sum + item.jumlah, 0);
+
+    const totalKeluar = financeItems
+      .filter((item) => item.type === "keluar")
+      .reduce((sum, item) => sum + item.jumlah, 0);
+
+    return totalMasuk - totalKeluar;
   }, [financeItems]);
 
-  const pembangunanSummary = useMemo(() => {
-    const pembangunanItems = financeItems.filter(
-      (item) => item.bucket === "kas_pembangunan"
-    );
-
-    const collected = pembangunanItems
-      .filter((item) => item.type === "kas_masuk" || item.type === "donasi")
-      .reduce((sum, item) => sum + item.amount, 0);
-
-    const progress = Math.min(
-      100,
-      Math.round((collected / PEMBANGUNAN_TARGET) * 100) || 0
-    );
-
-    return {
-      collected,
-      target: PEMBANGUNAN_TARGET,
-      progress,
-    };
-  }, [financeItems]);
-
-  const heroStats = useMemo(() => {
-    return [
-      {
-        label: "Pemasukan Tahun Ini",
-        value: formatRupiah(overallSummary.income),
-      },
-      {
-        label: "Saldo Aktif",
-        value: formatRupiah(overallSummary.balance),
-      },
-      {
-        label: "Program Aktif",
-        value: `${STATIC_PROGRAM_COUNT} Program`,
-      },
-      {
-        label: "Berita Terbaru",
-        value: `${STATIC_NEWS_COUNT} Update`,
-      },
-    ];
-  }, [overallSummary]);
+  const featuredCollected = kasPembangunanSummary.saldo;
+  const featuredPercent = getProgressPercent(featuredCollected, featuredProgramTarget);
 
   const prayerCards = [
-    ["Subuh", prayerTimes?.Fajr ?? "-"],
-    ["Dzuhur", prayerTimes?.Dhuhr ?? "-"],
-    ["Ashar", prayerTimes?.Asr ?? "-"],
-    ["Maghrib", prayerTimes?.Maghrib ?? "-"],
-    ["Isya", prayerTimes?.Isha ?? "-"],
-    ["Terbit", prayerTimes?.Sunrise ?? "-"],
-  ] as const;
+    { label: "Subuh", value: prayerTimes.Subuh },
+    { label: "Dzuhur", value: prayerTimes.Dzuhur },
+    { label: "Ashar", value: prayerTimes.Ashar },
+    { label: "Maghrib", value: prayerTimes.Maghrib },
+    { label: "Isya", value: prayerTimes.Isya },
+    { label: "Terbit", value: prayerTimes.Terbit },
+  ];
+
+  const navItems = [
+    { label: "Beranda", href: "#beranda" },
+    { label: "Program", href: "#program" },
+    { label: "Berita", href: "#berita" },
+    { label: "Keuangan", href: "/keuangan" },
+    { label: "Kontak", href: "#kontak" },
+  ];
 
   return (
-    <div className="min-h-screen bg-stone-50 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-emerald-100/80 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-200">
-              <MoonStar className="h-5 w-5" />
+    <main className="min-h-screen bg-[#f7faf8] text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-emerald-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 text-2xl font-bold text-white shadow-lg">
+              ☪
             </div>
-            <div>
-              <p className="text-sm font-semibold tracking-wide text-emerald-700">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-700">
                 Website Resmi
               </p>
-              <h1 className="text-xl font-bold tracking-tight">Langgar Kidoel</h1>
+              <h1 className="truncate text-2xl font-black text-slate-900">
+                Langgar Kidoel
+              </h1>
             </div>
-          </div>
+          </Link>
 
-          <nav className="hidden items-center gap-8 lg:flex">
-            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#beranda">
-              Beranda
-            </a>
-            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#fitur">
-              Fitur
-            </a>
-            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#program">
-              Program
-            </a>
-            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="/keuangan">
-              Keuangan
-            </a>
-            <a className="text-base font-semibold text-slate-700 transition hover:text-emerald-700" href="#kontak">
-              Kontak
-            </a>
+          <nav className="hidden items-center gap-8 md:flex">
+            {navItems.map((item) =>
+              item.href.startsWith("#") ? (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="text-base font-semibold text-slate-700 transition hover:text-emerald-700"
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className="text-base font-semibold text-slate-700 transition hover:text-emerald-700"
+                >
+                  {item.label}
+                </Link>
+              )
+            )}
           </nav>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="rounded-2xl lg:hidden">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:bg-slate-50 md:hidden"
+            aria-label="Toggle Menu"
+          >
+            <Menu size={22} />
+          </button>
         </div>
       </header>
 
-      <main>
-        <section
-          id="beranda"
-          className="relative overflow-hidden text-white"
-          style={{
-            backgroundImage:
-              "linear-gradient(90deg, rgba(4,24,18,0.88) 0%, rgba(6,95,70,0.78) 45%, rgba(16,185,129,0.48) 100%), url('https://images.unsplash.com/photo-1512632578888-169bbbc64f33?auto=format&fit=crop&w=1600&q=80')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
+      {/* mobile menu premium */}
+      <div
+        className={`fixed inset-0 z-[70] md:hidden transition-all duration-300 ${
+          mobileMenuOpen
+            ? "pointer-events-auto bg-black/45 opacity-100"
+            : "pointer-events-none bg-black/0 opacity-0"
+        }`}
+        onClick={() => setMobileMenuOpen(false)}
+      >
+        <div
+          className={`absolute right-0 top-0 h-full w-[82%] max-w-sm bg-white shadow-2xl transition-transform duration-300 ${
+            mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_28%)]" />
-          <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24">
-            <div className="max-w-3xl">
-              <Badge className="mb-5 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-white/10">
-                Website Resmi Langgar Kidoel
-              </Badge>
-
-              <h2 className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-                Pusat informasi Masjid yang rapi, modern, dan mudah diakses jamaah.
-              </h2>
-
-              <p className="mt-5 max-w-2xl text-base leading-7 text-emerald-50/90 sm:text-lg">
-                Temukan informasi kegiatan, jadwal shalat, program donasi, berita terbaru, dan
-                laporan keuangan masjid dalam satu website yang nyaman dibuka dari HP maupun
-                desktop.
+          <div className="flex items-center justify-between border-b border-emerald-100 px-5 py-5">
+            <div>
+              <p className="text-sm font-semibold text-emerald-700">
+                Website Resmi
               </p>
+              <h2 className="text-xl font-black text-slate-900">
+                Langgar Kidoel
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700"
+              aria-label="Close Menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
 
-              <div className="mt-8">
-                <p className="max-w-xl text-sm leading-7 text-emerald-50/80 sm:text-base">
-                  Website ini disiapkan untuk memudahkan jamaah mengikuti informasi terbaru dari
-                  Langgar Kidoel secara lebih cepat dan tertata.
+          <div className="px-4 py-5">
+            <nav className="flex flex-col gap-2">
+              {navItems.map((item) =>
+                item.href.startsWith("#") ? (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-2xl px-4 py-4 text-base font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                  >
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-2xl px-4 py-4 text-base font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                  >
+                    {item.label}
+                  </Link>
+                )
+              )}
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <section
+        id="beranda"
+        className="relative overflow-hidden"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(3,37,33,0.88) 0%, rgba(8,99,85,0.76) 50%, rgba(99,214,195,0.55) 100%), url(${HERO_BG})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:py-16">
+          <div className="flex flex-col justify-center">
+            <span className="mb-5 inline-flex w-fit rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white/90 backdrop-blur">
+              Website Resmi Langgar Kidoel
+            </span>
+
+            <h2 className="max-w-3xl text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
+              Pusat informasi masjid yang rapi, modern, dan mudah diakses
+              jamaah.
+            </h2>
+
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-emerald-50/95 sm:text-xl">
+              Temukan informasi kegiatan, jadwal shalat, program donasi, berita
+              terbaru, dan laporan keuangan masjid dalam satu website yang
+              nyaman dibuka dari HP maupun desktop.
+            </p>
+
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-emerald-50/80">
+              Website ini disiapkan untuk memudahkan jamaah mengikuti informasi
+              terbaru dari Langgar Kidoel secara lebih cepat, tertata, dan
+              mudah dipahami.
+            </p>
+
+            <div className="mt-8 grid grid-cols-2 gap-4">
+              <div className="rounded-[26px] border border-white/15 bg-white/10 p-5 backdrop-blur">
+                <p className="text-4xl font-black text-white">
+                  {shortRupiah(totalPemasukan)}
+                </p>
+                <p className="mt-2 text-sm font-medium text-emerald-50/90">
+                  Pemasukan Tahun Ini
                 </p>
               </div>
+              <div className="rounded-[26px] border border-white/15 bg-white/10 p-5 backdrop-blur">
+                <p className="text-4xl font-black text-white">
+                  {shortRupiah(totalSaldo)}
+                </p>
+                <p className="mt-2 text-sm font-medium text-emerald-50/90">
+                  Saldo Aktif
+                </p>
+              </div>
+              <div className="rounded-[26px] border border-white/15 bg-white/10 p-5 backdrop-blur">
+                <p className="text-4xl font-black text-white">4</p>
+                <p className="mt-2 text-sm font-medium text-emerald-50/90">
+                  Program Aktif
+                </p>
+              </div>
+              <div className="rounded-[26px] border border-white/15 bg-white/10 p-5 backdrop-blur">
+                <p className="text-4xl font-black text-white">12</p>
+                <p className="mt-2 text-sm font-medium text-emerald-50/90">
+                  Berita Terbaru
+                </p>
+              </div>
+            </div>
+          </div>
 
-              <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {heroStats.map((item) => (
-                  <Card
+          <div className="flex flex-col gap-6">
+            <div className="rounded-[34px] bg-[#eff8f4] p-5 shadow-[0_25px_70px_rgba(0,0,0,0.18)] sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.35em] text-emerald-700">
+                    Jadwal Shalat
+                  </p>
+                  <h3 className="mt-2 text-3xl font-black text-slate-900">
+                    Hari Ini
+                  </h3>
+                </div>
+                <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm">
+                  Live Update
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {prayerCards.map((item) => (
+                  <div
                     key={item.label}
-                    className="rounded-[28px] border border-white/10 bg-white/10 text-white shadow-none backdrop-blur-md"
+                    className="rounded-2xl border border-emerald-100 bg-white px-4 py-4 text-center shadow-sm"
                   >
-                    <CardContent className="p-6">
-                      <p className="break-words text-3xl font-black leading-tight sm:text-4xl">
-                        {item.value}
-                      </p>
-                      <p className="mt-3 text-sm leading-6 text-emerald-50/85 sm:text-base">
-                        {item.label}
-                      </p>
-                    </CardContent>
-                  </Card>
+                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                      {item.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">
+                      {item.value}
+                    </p>
+                  </div>
                 ))}
               </div>
             </div>
 
-            <div className="flex items-center">
-              <Card className="w-full rounded-[32px] border border-white/10 bg-white/90 text-slate-900 shadow-2xl shadow-emerald-950/20 backdrop-blur-md">
-                <CardContent className="space-y-6 p-5 sm:p-6 lg:p-7">
-                  <div className="rounded-[28px] bg-gradient-to-br from-emerald-50 to-teal-50 p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-                          Jadwal Shalat
-                        </p>
-                        <h3 className="mt-2 text-2xl font-black text-slate-900">Hari Ini</h3>
-                      </div>
-                      <div className="rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-emerald-700 shadow-sm">
-                        {prayerLoading ? "Memuat..." : "Live Update"}
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {prayerCards.map(([name, time]) => (
-                        <div
-                          key={name}
-                          className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-emerald-100"
-                        >
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            {name}
-                          </p>
-                          <p className="mt-2 text-lg font-black text-slate-900">{time}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[28px] bg-slate-950 p-5 text-white">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
-                          Program Unggulan
-                        </p>
-                        <h3 className="mt-2 text-2xl font-black">Renovasi Langgar Kidoel</h3>
-                      </div>
-                      <Badge className="rounded-full bg-amber-400 px-3 py-1 text-slate-900 hover:bg-amber-400">
-                        {pembangunanSummary.progress}% Tercapai
-                      </Badge>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">
-                      Pengembangan area ibadah, perbaikan fasilitas wudhu, dan peningkatan ruang
-                      kegiatan jamaah.
-                    </p>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Terkumpul</p>
-                        <p className="mt-2 text-xl font-black">
-                          {formatRupiah(pembangunanSummary.collected)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Target</p>
-                        <p className="mt-2 text-xl font-black">
-                          {formatRupiah(pembangunanSummary.target)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-4 py-14 lg:px-8">
-          <div className="overflow-hidden rounded-[32px] bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-800 text-white shadow-2xl shadow-emerald-200/20">
-            <div className="px-6 py-8 sm:px-8 sm:py-10 lg:px-12">
-              <div className="mb-4">
-                <span className="inline-flex rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
-                  {dailyQuote.type}
+            <div className="rounded-[30px] bg-[#020826] p-5 text-white shadow-[0_25px_70px_rgba(0,0,0,0.25)] sm:p-6">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="text-sm font-bold uppercase tracking-[0.28em] text-emerald-300">
+                  Program Unggulan
+                </span>
+                <span className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-slate-900">
+                  {featuredPercent}% Tercapai
                 </span>
               </div>
 
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-200">
-                {dailyQuote.source}
+              <h3 className="text-3xl font-black">Renovasi Langgar Kidoel</h3>
+              <p className="mt-3 text-base leading-7 text-slate-300">
+                Pengembangan area ibadah, perbaikan fasilitas wudhu, dan
+                peningkatan ruang kegiatan jamaah.
               </p>
 
-              <h3 className="mt-5 text-right text-2xl font-bold leading-loose text-white sm:text-3xl lg:text-4xl">
-                {dailyQuote.arabic}
-              </h3>
+              <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-yellow-400"
+                  style={{ width: `${featuredPercent}%` }}
+                />
+              </div>
 
-              <div className="mt-6 h-px w-full bg-white/10" />
-
-              <p className="mt-6 max-w-3xl text-base leading-8 text-emerald-50/90 sm:text-lg">
-                {dailyQuote.translation}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section id="fitur" className="mx-auto max-w-7xl px-4 py-14 lg:px-8">
-          <div className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <Badge className="rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
-                Informasi Utama
-              </Badge>
-              <h3 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-                Informasi utama untuk jamaah dalam satu halaman.
-              </h3>
-            </div>
-
-            <p className="max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
-              Halaman ini membantu jamaah melihat jadwal shalat, mengikuti program masjid,
-              membaca pengumuman terbaru, serta memantau laporan keuangan dengan tampilan
-              yang lebih rapi dan mudah dipahami.
-            </p>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              {
-                icon: MoonStar,
-                title: "Jadwal Shalat & Agenda",
-                text: "Jadwal shalat harian dan agenda kegiatan masjid ditampilkan agar jamaah mudah mengikuti aktivitas ibadah.",
-              },
-              {
-                icon: HeartHandshake,
-                title: "Program Donasi Masjid",
-                text: "Program pembangunan, santunan, infaq, dan kegiatan sosial ditampilkan agar jamaah mudah berpartisipasi.",
-              },
-              {
-                icon: Newspaper,
-                title: "Berita & Pengumuman",
-                text: "Informasi kajian, pengumuman kegiatan, dan berita terbaru masjid bisa dibaca dengan lebih cepat dan jelas.",
-              },
-              {
-                icon: Wallet,
-                title: "Laporan Keuangan",
-                text: "Ringkasan pemasukan, pengeluaran, dan saldo masjid disajikan agar jamaah dapat melihat transparansi keuangan.",
-              },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <Card
-                  key={item.title}
-                  className="rounded-[28px] border-0 bg-white shadow-lg shadow-slate-200/60 ring-1 ring-slate-100"
-                >
-                  <CardContent className="p-7">
-                    <div className="mb-5 inline-flex rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-3.5 text-white shadow-md shadow-emerald-200">
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <h4 className="text-2xl font-black tracking-tight text-slate-950">
-                      {item.title}
-                    </h4>
-                    <p className="mt-4 text-base leading-8 text-slate-600">{item.text}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-
-        <section id="program" className="mx-auto max-w-7xl px-4 pb-14 lg:px-8">
-          <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-            <Card className="rounded-[30px] border-0 bg-slate-950 text-white shadow-xl shadow-slate-300/30">
-              <CardContent className="p-7 sm:p-9">
-                <Badge className="rounded-full bg-emerald-400 px-4 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400">
-                  Akses Mudah
-                </Badge>
-
-                <h3 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">
-                  Mudah diakses jamaah dari HP maupun desktop
-                </h3>
-
-                <p className="mt-5 text-base leading-8 text-slate-300 sm:text-lg">
-                  Website Langgar Kidoel dibuat agar tetap nyaman dibuka dari berbagai perangkat.
-                  Jamaah dapat melihat jadwal shalat, membaca pengumuman, memantau program donasi,
-                  dan melihat laporan keuangan tanpa harus kesulitan saat membuka dari layar kecil.
-                </p>
-
-                <div className="mt-7 rounded-[28px] bg-white/5 p-5 ring-1 ring-white/10">
-                  <div className="flex items-center gap-4">
-                    <div className="rounded-2xl bg-emerald-500/15 p-3 text-emerald-300">
-                      <Smartphone className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold">Tampilan responsif</p>
-                      <p className="text-base leading-7 text-slate-400">
-                        Menu, jadwal, berita, program, dan laporan keuangan menyesuaikan ukuran layar secara otomatis.
-                      </p>
-                    </div>
-                  </div>
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Terkumpul
+                  </p>
+                  <p className="mt-2 text-2xl font-black">
+                    {formatRupiah(featuredCollected)}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              {[
-                {
-                  title: "Jadwal Harian",
-                  text: "Jadwal shalat dan informasi waktu ibadah harian tersedia agar jamaah lebih mudah memantau waktu.",
-                },
-                {
-                  title: "Program Sosial & Donasi",
-                  text: "Informasi pembangunan, santunan, dan program infaq ditampilkan agar jamaah mudah ikut mendukung.",
-                },
-                {
-                  title: "Kajian & Pengumuman",
-                  text: "Agenda kajian, berita kegiatan, dan pengumuman penting ditampilkan lebih rapi dan informatif.",
-                },
-                {
-                  title: "Transparansi Keuangan",
-                  text: "Data pemasukan, pengeluaran, dan saldo ditampilkan agar jamaah dapat memantau laporan masjid.",
-                },
-              ].map((item, idx) => (
-                <Card
-                  key={idx}
-                  className="rounded-[28px] border-0 bg-gradient-to-br from-white to-emerald-50 shadow-lg shadow-slate-200/50 ring-1 ring-emerald-100"
-                >
-                  <CardContent className="p-7">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-base font-black text-white">
-                      0{idx + 1}
-                    </div>
-                    <h4 className="mt-5 text-2xl font-black tracking-tight text-slate-950">
-                      {item.title}
-                    </h4>
-                    <p className="mt-4 text-base leading-8 text-slate-600">{item.text}</p>
-                  </CardContent>
-                </Card>
-              ))}
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Target
+                  </p>
+                  <p className="mt-2 text-2xl font-black">
+                    {formatRupiah(featuredProgramTarget)}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section id="keuangan" className="mx-auto max-w-7xl px-4 pb-16 lg:px-8">
-          <Card className="overflow-hidden rounded-[34px] border-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-2xl shadow-emerald-200/50">
-            <CardContent className="p-6 sm:p-8 lg:p-10">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <Badge className="rounded-full bg-white/15 text-white hover:bg-white/15">
-                    Ringkasan Laporan Keuangan
-                  </Badge>
-                  <h3 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-                    Data keuangan tampil live dan sinkron.
-                  </h3>
-                  <p className="mt-4 max-w-3xl text-sm leading-7 text-white/85 sm:text-base">
-                    Menampilkan 3 kategori keuangan utama yang tersinkron langsung dari Google Spreadsheet.
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr] lg:items-start">
+          <div>
+            <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
+              Informasi Utama
+            </span>
+            <h3 className="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-900">
+              Semua kebutuhan informasi masjid dalam satu tampilan yang lebih
+              rapi.
+            </h3>
+          </div>
+          <p className="text-lg leading-8 text-slate-600">
+            Website ini dirancang agar jamaah dapat dengan mudah mengakses
+            informasi penting seperti berita masjid, laporan keuangan, program
+            donasi, jadwal kegiatan, dan informasi layanan lainnya dari berbagai
+            perangkat.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              icon: <Landmark size={20} />,
+              title: "Keuangan Transparan",
+              desc: "Ringkasan pemasukan, pengeluaran, saldo, dan laporan publik yang mudah dipahami jamaah.",
+            },
+            {
+              icon: <HeartHandshake size={20} />,
+              title: "Program Donasi Aktif",
+              desc: "Program infaq, bantuan, renovasi, Ramadhan, dan Qurban tampil lebih rapi dan mudah diakses.",
+            },
+            {
+              icon: <Newspaper size={20} />,
+              title: "Portal Berita Masjid",
+              desc: "Pengumuman, kajian, dan agenda masjid dapat dipublikasikan dengan tampilan yang modern.",
+            },
+            {
+              icon: <CalendarDays size={20} />,
+              title: "Pengelolaan Lebih Mudah",
+              desc: "Dirancang agar mudah digunakan pengurus untuk mengelola informasi masjid secara teratur.",
+            },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.05)]"
+            >
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg">
+                {item.icon}
+              </div>
+              <h4 className="mt-5 text-2xl font-bold text-slate-900">
+                {item.title}
+              </h4>
+              <p className="mt-3 text-base leading-7 text-slate-600">
+                {item.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[34px] bg-[#030822] p-6 text-white shadow-[0_25px_70px_rgba(0,0,0,0.22)] sm:p-8">
+            <span className="inline-flex rounded-full bg-emerald-400 px-4 py-2 text-sm font-bold text-slate-900">
+              Jadwal Khotib Jumat
+            </span>
+
+            <h3 className="mt-5 text-4xl font-black leading-tight">
+              Informasi khotib, bilal, dan tema khutbah Jumat pekan ini
+            </h3>
+
+            <p className="mt-5 text-lg leading-8 text-slate-300">
+              Jamaah dapat melihat informasi pelaksanaan khutbah Jumat lebih
+              mudah, mulai dari tanggal Hijriah dan Masehi, nama khotib, nama
+              bilal, hingga judul khutbah yang akan disampaikan.
+            </p>
+
+            <div className="mt-8 rounded-[28px] border border-white/10 bg-white/5 p-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-emerald-300">
+                    Tanggal Hijriah
+                  </p>
+                  <p className="mt-2 text-xl font-bold">
+                    {fridayKhutbahInfo.tanggalHijriah}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-emerald-300">
+                    Tanggal Masehi
+                  </p>
+                  <p className="mt-2 text-xl font-bold">
+                    {fridayKhutbahInfo.tanggalMasehi}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-emerald-300">
+                    Nama Khotib
+                  </p>
+                  <p className="mt-2 text-xl font-bold">
+                    {fridayKhutbahInfo.khotib}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-emerald-300">
+                    Nama Bilal
+                  </p>
+                  <p className="mt-2 text-xl font-bold">
+                    {fridayKhutbahInfo.bilal}
                   </p>
                 </div>
               </div>
 
-              {financeError ? (
-                <div className="mt-6 rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-                  {financeError}
-                </div>
-              ) : null}
-
-              {financeLoading ? (
-                <div className="mt-6 rounded-2xl bg-white/10 px-4 py-4 text-sm text-white/80">
-                  Memuat data keuangan...
-                </div>
-              ) : (
-                <div className="mt-8 grid gap-6 xl:grid-cols-3">
-                  <FinancePanel title="Kas Masjid" bucket="kas_masjid" items={financeItems} />
-                  <FinancePanel title="Kas Pembangunan" bucket="kas_pembangunan" items={financeItems} />
-                  <FinancePanel title="Kas Anak Yatim" bucket="kas_anak_yatim" items={financeItems} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section id="kontak" className="mx-auto max-w-7xl px-4 pb-16 lg:px-8">
-          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50 sm:p-8">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-700">
-                  Kontak & Informasi
+              <div className="mt-4 rounded-2xl bg-emerald-500/10 p-4 ring-1 ring-emerald-400/20">
+                <p className="text-sm font-semibold text-emerald-300">
+                  Judul Khutbah
                 </p>
-                <h3 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
-                  Langgar Kidoel hadir sebagai pusat informasi kegiatan dan pelayanan jamaah.
-                </h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600 sm:text-base">
-                  Silakan akses website untuk mengikuti perkembangan program, membaca pengumuman,
-                  dan melihat informasi terbaru dari Langgar Kidoel.
+                <p className="mt-2 text-2xl font-black text-white">
+                  {fridayKhutbahInfo.judulKhutbah}
                 </p>
               </div>
             </div>
           </div>
-        </section>
-      </main>
 
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 lg:grid-cols-3 lg:px-8">
+          <div className="grid gap-5 lg:grid-cols-2">
+            {articles.map((article, idx) => (
+              <article
+                key={article.id}
+                className="overflow-hidden rounded-[28px] border border-emerald-100 bg-gradient-to-br from-white to-emerald-50 shadow-lg shadow-slate-200/50 ring-1 ring-emerald-100"
+              >
+                <div className="aspect-[16/9] w-full overflow-hidden bg-slate-100">
+                  {article.image ? (
+                    <img
+                      src={article.image}
+                      alt={article.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                      Tidak ada gambar
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-7">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-base font-black text-white">
+                      0{idx + 1}
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                      {article.category}
+                    </span>
+                  </div>
+
+                  <h4 className="mt-5 text-2xl font-black tracking-tight text-slate-950">
+                    {article.title}
+                  </h4>
+
+                  <p className="mt-4 text-base leading-8 text-slate-600">
+                    {article.excerpt}
+                  </p>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                    <span>{formatDate(article.date)}</span>
+                    <span>•</span>
+                    <span>{article.author || "Admin"}</span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="program" className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr]">
           <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-200">
-                <MoonStar className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide text-emerald-700">
-                  Website Resmi
+            <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
+              Program Masjid
+            </span>
+            <h3 className="mt-4 text-4xl font-black leading-tight text-slate-900">
+              Dukungan jamaah untuk program yang sedang berjalan
+            </h3>
+          </div>
+          <p className="text-lg leading-8 text-slate-600">
+            Informasi program donasi dan kegiatan sosial ditampilkan secara
+            ringkas agar jamaah dapat mengikuti perkembangannya dan ikut
+            berpartisipasi.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          {programs.map((program) => {
+            const percent = getProgressPercent(program.terkumpul, program.target);
+
+            return (
+              <div
+                key={program.title}
+                className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.05)]"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                    {percent}% tercapai
+                  </span>
+                  <span className="text-sm font-semibold text-slate-500">
+                    {program.status}
+                  </span>
+                </div>
+
+                <h4 className="mt-5 text-2xl font-bold text-slate-900">
+                  {program.title}
+                </h4>
+                <p className="mt-3 text-base leading-7 text-slate-600">
+                  {program.description}
                 </p>
-                <h4 className="text-lg font-bold text-slate-950">Langgar Kidoel</h4>
+
+                <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Terkumpul
+                    </p>
+                    <p className="mt-2 text-xl font-bold text-slate-900">
+                      {formatRupiah(program.terkumpul)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Target
+                    </p>
+                    <p className="mt-2 text-xl font-bold text-slate-900">
+                      {formatRupiah(program.target)}
+                    </p>
+                  </div>
+                </div>
               </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section id="berita" className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr]">
+          <div>
+            <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
+              Berita & Pengumuman
+            </span>
+            <h3 className="mt-4 text-4xl font-black leading-tight text-slate-900">
+              Informasi terbaru untuk jamaah
+            </h3>
+          </div>
+          <p className="text-lg leading-8 text-slate-600">
+            Kajian, pengumuman, dan kabar terbaru masjid dapat diakses dengan
+            lebih cepat dan nyaman dari satu halaman yang tertata.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          {latestNews.map((news) => (
+            <div
+              key={news.title}
+              className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.05)]"
+            >
+              <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
+                {news.category}
+              </span>
+              <h4 className="mt-5 text-2xl font-bold leading-snug text-slate-900">
+                {news.title}
+              </h4>
+              <p className="mt-4 text-base text-slate-500">{news.date}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="rounded-[34px] border border-emerald-100 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
+                {todayQuote.type === "ayat" ? "Ayat Harian" : "Hadis Harian"}
+              </span>
+              <h3 className="mt-4 text-3xl font-black text-slate-900">
+                Renungan untuk hari ini
+              </h3>
+            </div>
+            <p className="text-base leading-7 text-slate-500">
+              {getTodayLabel()}
+            </p>
+          </div>
+
+          <div className="mt-6 rounded-[28px] bg-gradient-to-r from-emerald-600 to-teal-500 p-6 text-white sm:p-8">
+            <p className="text-right text-sm font-semibold text-emerald-50/90">
+              {todayQuote.source}
+            </p>
+            <p className="mt-4 text-right text-2xl font-bold leading-[2.2] sm:text-3xl">
+              {todayQuote.arabic}
+            </p>
+            <p className="mt-6 text-lg leading-8 text-emerald-50/95 sm:text-xl">
+              {todayQuote.translation}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="overflow-hidden rounded-[36px] bg-gradient-to-r from-emerald-600 to-sky-500 p-6 shadow-[0_25px_70px_rgba(15,23,42,0.15)] sm:p-8">
+          <div className="mb-8">
+            <span className="inline-flex rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white">
+              Ringkasan Laporan Keuangan
+            </span>
+            <h3 className="mt-4 text-4xl font-black leading-tight text-white">
+              Data keuangan tampil live dan sinkron
+            </h3>
+            <p className="mt-3 max-w-3xl text-lg leading-8 text-emerald-50/90">
+              Menampilkan 3 kategori keuangan utama yang tersinkron langsung
+              dari Google Spreadsheet.
+            </p>
+          </div>
+
+          {loadingFinance ? (
+            <div className="rounded-[28px] bg-white/10 p-5 text-base font-medium text-white">
+              Memuat data keuangan...
+            </div>
+          ) : (
+            <div className="grid gap-5 xl:grid-cols-3">
+              <FinanceSectionCard title="Kas Masjid" summary={kasMasjidSummary} />
+              <FinanceSectionCard
+                title="Kas Pembangunan"
+                summary={kasPembangunanSummary}
+              />
+              <FinanceSectionCard
+                title="Kas Anak Yatim"
+                summary={kasAnakYatimSummary}
+              />
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section id="kontak" className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="rounded-[34px] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.05)] sm:p-8">
+          <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr]">
+            <div>
+              <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
+                Kontak & Informasi
+              </span>
+              <h3 className="mt-4 text-4xl font-black leading-tight text-slate-900">
+                Langgar Kidoel hadir sebagai pusat informasi kegiatan dan
+                pelayanan jamaah
+              </h3>
+              <p className="mt-4 text-lg leading-8 text-slate-600">
+                Silakan akses website ini untuk mengikuti perkembangan program,
+                membaca pengumuman, dan melihat informasi terbaru dari Langgar
+                Kidoel.
+              </p>
             </div>
 
-            <p className="mt-4 max-w-md text-sm leading-7 text-slate-600">
-              Website resmi Langgar Kidoel untuk menyampaikan informasi kegiatan,
-              jadwal shalat, program donasi, berita masjid, dan laporan keuangan secara
-              lebih rapi dan mudah diakses jamaah.
+            <div className="grid gap-4">
+              <div className="rounded-[26px] bg-slate-50 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 text-emerald-600">
+                    <MapPin size={22} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Alamat
+                    </p>
+                    <p className="mt-2 text-xl font-bold text-slate-900">
+                      Jl. Raya Masjid No. 1, Kota Indah, Indonesia
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[26px] bg-slate-50 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 text-emerald-600">
+                    <Phone size={22} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Kontak
+                    </p>
+                    <p className="mt-2 text-xl font-bold text-slate-900">
+                      0812-3456-7890
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[26px] bg-slate-50 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 text-emerald-600">
+                    <Mail size={22} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Email
+                    </p>
+                    <p className="mt-2 text-xl font-bold break-all text-slate-900">
+                      info@langgarkidoel.id
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-emerald-100 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1.15fr_0.9fr_0.9fr] lg:px-8">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 text-2xl font-bold text-white shadow-lg">
+                ☪
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-700">
+                  Website Resmi
+                </p>
+                <h4 className="text-2xl font-black text-slate-900">
+                  Langgar Kidoel
+                </h4>
+              </div>
+            </div>
+            <p className="mt-5 max-w-md text-base leading-7 text-slate-600">
+              Website resmi Langgar Kidoel untuk menyampaikan informasi jamaah,
+              program masjid, jadwal shalat, berita, serta laporan keuangan
+              secara lebih rapi dan mudah diakses.
             </p>
           </div>
 
           <div>
-            <h5 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-900">
-              Navigasi
-            </h5>
-            <ul className="mt-4 space-y-3 text-sm text-slate-600">
-              <li><a href="#beranda" className="transition hover:text-emerald-700">Beranda</a></li>
-              <li><a href="#fitur" className="transition hover:text-emerald-700">Fitur</a></li>
-              <li><a href="#program" className="transition hover:text-emerald-700">Program</a></li>
-              <li><a href="#keuangan" className="transition hover:text-emerald-700">Keuangan</a></li>
-              <li><a href="#kontak" className="transition hover:text-emerald-700">Kontak</a></li>
-            </ul>
+            <h5 className="text-lg font-black text-slate-900">Navigasi</h5>
+            <div className="mt-4 space-y-3">
+              <a href="#beranda" className="block text-base text-slate-600 hover:text-emerald-700">
+                Beranda
+              </a>
+              <a href="#program" className="block text-base text-slate-600 hover:text-emerald-700">
+                Program
+              </a>
+              <a href="#berita" className="block text-base text-slate-600 hover:text-emerald-700">
+                Berita
+              </a>
+              <Link href="/keuangan" className="block text-base text-slate-600 hover:text-emerald-700">
+                Keuangan
+              </Link>
+              <a href="#kontak" className="block text-base text-slate-600 hover:text-emerald-700">
+                Kontak
+              </a>
+            </div>
           </div>
 
           <div>
-            <h5 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-900">
-              Informasi
-            </h5>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <p>Alamat: Yogyakarta, Indonesia</p>
-              <p>Email: info@langgarkidoel.com</p>
-              <p>Website ini dikelola untuk kebutuhan informasi jamaah.</p>
+            <h5 className="text-lg font-black text-slate-900">Kontak Cepat</h5>
+            <div className="mt-4 space-y-3 text-base text-slate-600">
+              <p>Jl. Raya Masjid No. 1, Kota Indah, Indonesia</p>
+              <p>0812-3456-7890</p>
+              <p className="break-all">info@langgarkidoel.id</p>
             </div>
           </div>
         </div>
 
         <div className="border-t border-slate-100">
-          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-            <p>© 2026 Langgar Kidoel. Semua hak dilindungi.</p>
-            <p>Media informasi resmi untuk jamaah dan masyarakat.</p>
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-slate-500 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <p>© 2026 Langgar Kidoel. Semua hak cipta dilindungi.</p>
+            <p>Dikelola untuk memudahkan informasi jamaah.</p>
           </div>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }
