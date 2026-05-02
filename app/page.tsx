@@ -667,24 +667,24 @@ export default function HomePage() {
           : [];
 
         const normalized: ArticleItem[] = rawItems
-          .map((item: any) => ({
-            id: String(item.id || crypto.randomUUID()),
-            title: String(item.title || ""),
-            excerpt: String(item.excerpt || item.ringkasan || ""),
-            category: String(item.category || item.kategori || "Artikel"),
-            date: String(item.date || item.tanggal || ""),
-            author: item.author ? String(item.author) : "Admin",
-            image: item.image ? String(item.image) : "",
-            isPublished:
-              String(item.isPublished || item.publish || "TRUE").toLowerCase() ===
-              "true",
+          .map((item: any): ArticleItem => ({
+          id: String(item.id || crypto.randomUUID()),
+          title: String(item.title || ""),
+          excerpt: String(item.excerpt || item.ringkasan || ""),
+          category: String(item.category || item.kategori || "Artikel"),
+          date: String(item.date || item.tanggal || ""),
+          author: item.author ? String(item.author) : "Admin",
+          image: item.image ? String(item.image) : "",
+          isPublished:
+          String(item.isPublished || item.publish || "TRUE").toLowerCase() ===
+          "true",
           }))
-          .filter((item) => item.isPublished)
-          .sort(
-            (a, b) =>
-              new Date(b.date).getTime() - new Date(a.date).getTime()
-          )
-          .slice(0, 2);
+        .filter((item: ArticleItem) => item.isPublished)
+        .sort(
+         (a: ArticleItem, b: ArticleItem) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+        .slice(0, 2);
 
         if (normalized.length > 0) {
           setArticles(normalized);
