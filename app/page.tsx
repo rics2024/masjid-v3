@@ -12,6 +12,7 @@ import {
   Menu,
   Newspaper,
   Phone,
+  RefreshCw,
   Wallet,
   X,
 } from "lucide-react";
@@ -136,68 +137,42 @@ const fallbackFinanceItems: FinanceItem[] = [
     date: "2026-04-29",
     bucket: "kasMasjid",
     type: "masuk",
-    amount: 5_000_000,
     description: "Infaq Jumat",
+    amount: 5_000_000,
   },
   {
     id: "2",
     date: "2026-04-26",
     bucket: "kasMasjid",
     type: "keluar",
-    amount: 300_000,
     description: "Pembelian alat kebersihan",
+    amount: 300_000,
   },
   {
     id: "3",
     date: "2026-04-28",
     bucket: "kasPembangunan",
     type: "masuk",
-    amount: 10_000_000,
     description: "Donasi pembangunan",
-    donor: "Ahmad Fauzi",
+    amount: 10_000_000,
+    donor: "Kumis Ganteng",
   },
   {
     id: "4",
-    date: "2026-04-17",
+    date: "2026-04-27",
     bucket: "kasAnakYatim",
     type: "masuk",
+    description: "Donasi anak yatim",
     amount: 3_000_000,
-    description: "Santunan jamaah",
-    donor: "Siti Aminah",
+    donor: "Encing",
   },
   {
     id: "5",
-    date: "2026-04-24",
-    bucket: "kasMasjid",
-    type: "masuk",
-    amount: 1_500_000,
-    description: "Infaq kotak amal",
-  },
-  {
-    id: "6",
-    date: "2026-04-20",
+    date: "2026-04-25",
     bucket: "kasMasjid",
     type: "keluar",
-    amount: 1_200_000,
     description: "Bayar listrik",
-  },
-  {
-    id: "7",
-    date: "2026-04-21",
-    bucket: "kasPembangunan",
-    type: "masuk",
-    amount: 2_000_000,
-    description: "Donasi renovasi",
-    donor: "Hamba Allah",
-  },
-  {
-    id: "8",
-    date: "2026-04-19",
-    bucket: "kasAnakYatim",
-    type: "masuk",
-    amount: 750_000,
-    description: "Infaq sosial",
-    donor: "Muhammad Rizki",
+    amount: 300_000,
   },
 ];
 
@@ -411,6 +386,7 @@ function normalizeBucket(value: unknown): FinanceBucketKey {
   const text = String(value ?? "").toLowerCase();
 
   if (
+    text.includes("kas_pembangunan") ||
     text.includes("pembangunan") ||
     text.includes("renovasi") ||
     text.includes("bangun")
@@ -418,7 +394,11 @@ function normalizeBucket(value: unknown): FinanceBucketKey {
     return "kasPembangunan";
   }
 
-  if (text.includes("yatim")) {
+  if (
+    text.includes("kas_anak_yatim") ||
+    text.includes("anak_yatim") ||
+    text.includes("yatim")
+  ) {
     return "kasAnakYatim";
   }
 
@@ -429,6 +409,7 @@ function normalizeType(value: unknown): FinanceType {
   const text = String(value ?? "").toLowerCase();
 
   if (
+    text.includes("kas_keluar") ||
     text.includes("keluar") ||
     text.includes("pengeluaran") ||
     text.includes("debit")
@@ -444,27 +425,8 @@ function normalizeFinanceItems(raw: unknown[]): FinanceItem[] {
     .map((entry, index): FinanceItem | null => {
       if (!isRecord(entry)) return null;
 
-      const rawMasuk = toNumber(
-        entry.kasMasuk ?? entry.masuk ?? entry.amountMasuk
-      );
-      const rawKeluar = toNumber(
-        entry.kasKeluar ?? entry.keluar ?? entry.amountKeluar
-      );
-
-      let type: FinanceType = normalizeType(
-        entry.type ?? entry.jenis ?? entry.status
-      );
-      let amount = toNumber(entry.amount ?? entry.nominal ?? entry.jumlah);
-
-      if (rawMasuk > 0 || rawKeluar > 0) {
-        if (rawMasuk > 0) {
-          type = "masuk";
-          amount = rawMasuk;
-        } else {
-          type = "keluar";
-          amount = rawKeluar;
-        }
-      }
+      const amount = toNumber(entry.amount ?? entry.nominal ?? entry.jumlah);
+      if (amount <= 0) return null;
 
       return {
         id: String(entry.id ?? `finance-${index}`),
@@ -472,15 +434,17 @@ function normalizeFinanceItems(raw: unknown[]): FinanceItem[] {
         bucket: normalizeBucket(
           entry.bucket ?? entry.kategori ?? entry.kas ?? entry.financeGroup
         ),
-        type,
+        type: normalizeType(entry.type ?? entry.jenis ?? entry.status),
         amount,
         description: String(
-          entry.description ?? entry.keterangan ?? entry.title ?? "-"
+          entry.description ?? entry.keterangan ?? entry.title ?? entry.note ?? "-"
         ),
-        donor: entry.donor ? String(entry.donor) : "",
+        donor: String(
+          entry.donor ?? entry.donatur ?? entry.donorName ?? entry.donorname ?? ""
+        ),
       };
     })
-    .filter((item): item is FinanceItem => item !== null && item.amount > 0)
+    .filter((item): item is FinanceItem => item !== null)
     .sort(
       (a, b) => parseDateValue(b.date).getTime() - parseDateValue(a.date).getTime()
     );
@@ -679,13 +643,15 @@ function SmallMeta({
 
 export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
+  const [financeItems, setFinanceItems] = useState<FinanceItem[]>(fallbackFinanceItems);
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes>(fallbackPrayerTimes);
   const [dailyVerse, setDailyVerse] = useState<DailyVerse>(dailyVerses[0]);
   const [todayLabel, setTodayLabel] = useState("");
   const [fridayKhutbah, setFridayKhutbah] =
     useState<FridayKhutbah>(fallbackFridayKhutbah);
+  const [financeReady, setFinanceReady] = useState(false);
+  const [refreshingFinance, setRefreshingFinance] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -728,72 +694,74 @@ export default function HomePage() {
     fetchPrayerTimes();
   }, []);
 
-  useEffect(() => {
+  const fetchSheetData = async (isManualRefresh = false) => {
     const gasUrl = process.env.NEXT_PUBLIC_GAS_URL?.trim();
+
     if (!gasUrl) {
-      setFinanceItems(fallbackFinanceItems);
+      setFinanceReady(true);
       return;
     }
 
-    const fetchSheetData = async () => {
-      try {
-        const response = await fetch(gasUrl, {
-          method: "GET",
-          cache: "no-store",
-        });
-
-        const json = await response.json();
-        const root = (json?.data ?? json) as unknown;
-
-        if (isRecord(root)) {
-          const financeRaw =
-            root.financeItems ??
-            root.transactions ??
-            root.transaksi ??
-            root.keuangan ??
-            root.finance ??
-            root.items;
-
-          const financeNormalized = normalizeFinanceItems(
-            toArray<unknown>(financeRaw)
-          );
-          if (financeNormalized.length > 0) {
-            setFinanceItems(financeNormalized);
-          } else {
-            setFinanceItems(fallbackFinanceItems);
-          }
-
-          const articleRaw =
-            root.articles ?? root.artikel ?? root.posts ?? root.berita;
-          const articleNormalized = normalizeArticles(toArray<unknown>(articleRaw));
-          setArticles(articleNormalized);
-
-          const fridayRaw =
-            root.fridayKhutbah ??
-            root.khotibJumat ??
-            root.jadwalJumat ??
-            root.fridaySchedule;
-
-          const fridayNormalized = normalizeFridayKhutbah(fridayRaw);
-          if (fridayNormalized) {
-            setFridayKhutbah(fridayNormalized);
-          }
-        } else {
-          setFinanceItems(fallbackFinanceItems);
-        }
-      } catch (error) {
-        console.error("Gagal mengambil data spreadsheet:", error);
-        setFinanceItems(fallbackFinanceItems);
+    try {
+      if (isManualRefresh) {
+        setRefreshingFinance(true);
       }
-    };
 
-    fetchSheetData();
+      const response = await fetch(gasUrl, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const json = await response.json();
+      const root = (json?.data ?? json) as unknown;
+
+      if (isRecord(root)) {
+        const financeRaw =
+          root.financeItems ??
+          root.transactions ??
+          root.transaksi ??
+          root.keuangan ??
+          root.finance ??
+          root.items;
+
+        const financeNormalized = normalizeFinanceItems(
+          toArray<unknown>(financeRaw)
+        );
+
+        if (financeNormalized.length > 0) {
+          setFinanceItems(financeNormalized);
+        }
+
+        const articleRaw =
+          root.articles ?? root.artikel ?? root.posts ?? root.berita;
+        const articleNormalized = normalizeArticles(toArray<unknown>(articleRaw));
+        setArticles(articleNormalized);
+
+        const fridayRaw =
+          root.fridayKhutbah ??
+          root.khotibJumat ??
+          root.jadwalJumat ??
+          root.fridaySchedule;
+
+        const fridayNormalized = normalizeFridayKhutbah(fridayRaw);
+        if (fridayNormalized) {
+          setFridayKhutbah(fridayNormalized);
+        }
+      }
+    } catch (error) {
+      console.error("Gagal mengambil data spreadsheet:", error);
+    } finally {
+      setFinanceReady(true);
+      setRefreshingFinance(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSheetData(false);
   }, []);
 
   const bucketSummaries = useMemo(() => {
-    return buildBucketSummaries(
-      financeItems.length > 0 ? financeItems : fallbackFinanceItems
-    );
+    return buildBucketSummaries(financeItems);
   }, [financeItems]);
 
   const kasPembangunan = bucketSummaries.find(
@@ -1412,93 +1380,123 @@ export default function HomePage() {
                 dari Google Spreadsheet.
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => fetchSheetData(true)}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 text-sm font-semibold text-white transition hover:bg-white/20"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${refreshingFinance ? "animate-spin" : ""}`}
+              />
+              {refreshingFinance ? "Menyegarkan..." : "Refresh Data"}
+            </button>
           </div>
 
           <div className="mt-8 grid gap-6 xl:grid-cols-3">
-            {bucketSummaries.map((bucket) => (
-              <div
-                key={bucket.key}
-                className="rounded-[28px] bg-white/10 p-5 backdrop-blur-md"
-              >
-                <h4 className="text-[32px] font-bold leading-tight text-white">
-                  {bucket.label}
-                </h4>
-                <p className="mt-2 text-[15px] text-white/80">
-                  {bucket.recent.length} transaksi terbaru
-                </p>
+            {bucketSummaries.map((bucket) => {
+              const latestDonor = bucket.recent.find(
+                (item) =>
+                  item.type === "masuk" &&
+                  item.donor &&
+                  item.donor.trim() !== ""
+              );
 
-                <div className="mt-5 grid gap-3">
-                  <div className="rounded-2xl bg-white/10 p-4">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                      Masuk
-                    </p>
-                    <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
-                      {formatRupiah(bucket.incoming)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-white/10 p-4">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                      Keluar
-                    </p>
-                    <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
-                      {formatRupiah(bucket.outgoing)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-white/10 p-4">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                      Saldo
-                    </p>
-                    <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
-                      {formatRupiah(bucket.balance)}
-                    </p>
-                  </div>
-                </div>
+              return (
+                <div
+                  key={bucket.key}
+                  className="rounded-[28px] bg-white/10 p-5 backdrop-blur-md"
+                >
+                  <h4 className="text-[32px] font-bold leading-tight text-white">
+                    {bucket.label}
+                  </h4>
+                  <p className="mt-2 text-[15px] text-white/80">
+                    {bucket.recent.length} transaksi terbaru
+                  </p>
 
-                <div className="mt-5 space-y-3">
-                  {bucket.recent.length === 0 ? (
-                    <div className="rounded-2xl bg-white/10 p-4 text-[15px] text-white/80">
-                      Belum ada data transaksi.
-                    </div>
-                  ) : (
-                    bucket.recent.slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl bg-white/10 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="text-[13px] text-white/70">
-                              {formatShortDate(item.date)}
-                            </div>
-                            <div className="mt-1 text-[15px] font-semibold leading-6 text-white">
-                              {item.description}
-                            </div>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
-                              item.type === "masuk"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-rose-100 text-rose-700"
-                            }`}
-                          >
-                            {item.type === "masuk" ? "Kas Masuk" : "Kas Keluar"}
+                  <div className="mt-5 grid gap-3">
+                    <div className="rounded-2xl bg-white/10 p-4">
+                      <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                        Masuk
+                      </p>
+                      <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
+                        {formatRupiah(bucket.incoming)}
+                      </p>
+                      {latestDonor ? (
+                        <p className="mt-2 text-[13px] leading-5 text-white/75">
+                          Donatur:{" "}
+                          <span className="font-semibold text-white">
+                            {latestDonor.donor}
                           </span>
-                        </div>
+                        </p>
+                      ) : null}
+                    </div>
 
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-[13px] text-white/70">
-                            {item.donor ? `Donatur: ${item.donor}` : "Transaksi"}
+                    <div className="rounded-2xl bg-white/10 p-4">
+                      <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                        Keluar
+                      </p>
+                      <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
+                        {formatRupiah(bucket.outgoing)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white/10 p-4">
+                      <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                        Saldo
+                      </p>
+                      <p className="mt-2 break-words text-[22px] font-bold leading-tight text-white">
+                        {formatRupiah(bucket.balance)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {bucket.recent.length === 0 ? (
+                      <div className="rounded-2xl bg-white/10 p-4 text-[15px] text-white/80">
+                        Belum ada data transaksi.
+                      </div>
+                    ) : (
+                      bucket.recent.slice(0, 3).map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl bg-white/10 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="text-[13px] text-white/70">
+                                {formatShortDate(item.date)}
+                              </div>
+                              <div className="mt-1 text-[15px] font-semibold leading-6 text-white">
+                                {item.description}
+                              </div>
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${
+                                item.type === "masuk"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-rose-100 text-rose-700"
+                              }`}
+                            >
+                              {item.type === "masuk" ? "Kas Masuk" : "Kas Keluar"}
+                            </span>
                           </div>
-                          <div className="text-[16px] font-bold text-white">
-                            {formatRupiah(item.amount)}
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <div className="text-[13px] text-white/70">
+                              {item.donor ? `Donatur: ${item.donor}` : "Transaksi"}
+                            </div>
+                            <div className="text-[16px] font-bold text-white">
+                              {formatRupiah(item.amount)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
