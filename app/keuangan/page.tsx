@@ -73,7 +73,7 @@ function formatDate(dateString: string) {
 }
 
 function toNumber(value: unknown) {
-  if (typeof value === "number") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
     const clean = value.replace(/[^\d-]/g, "");
     return Number(clean || 0);
@@ -83,66 +83,112 @@ function toNumber(value: unknown) {
 
 function mapCategory(value: string): FinanceType {
   const v = value.toLowerCase();
-  if (v.includes("pembangunan")) return "pembangunan";
+  if (v.includes("pembangunan") || v.includes("renovasi")) return "pembangunan";
   if (v.includes("yatim")) return "yatim";
   return "masjid";
 }
 
-function parseFinanceResponse(payload: any): FinanceItem[] {
-  const rows = Array.isArray(payload?.finance)
-    ? payload.finance
-    : Array.isArray(payload?.keuangan)
-      ? payload.keuangan
-      : Array.isArray(payload?.data)
-        ? payload.data
-        : [];
+function mapType(value: string): "masuk" | "keluar" {
+  return value.toLowerCase().includes("keluar") ? "keluar" : "masuk";
+}
 
-  return rows.map((item: any, index: number) => ({
-    id: String(item.id ?? index + 1),
-    category: mapCategory(
-      item.category || item.kategori || item.kas || "kas masjid"
-    ),
-    date: item.date || item.tanggal || "",
-    description: item.description || item.keterangan || "",
-    donor: item.donor || item.donatur || "",
-    type:
-      String(item.type || item.jenis || item.transaksi || "")
-        .toLowerCase()
-        .includes("keluar")
-        ? "keluar"
-        : "masuk",
-    amount: toNumber(item.amount || item.nominal || item.jumlah || 0),
-  }));
+function sortByDateDesc<T extends { date: string }>(items: T[]) {
+  return [...items].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+}
+
+function parseFinanceResponse(payload: any): FinanceItem[] {
+  const root = payload?.data ?? payload;
+
+  let rows: any[] = [];
+
+  if (Array.isArray(root?.financeItems)) rows = root.financeItems;
+  else if (Array.isArray(root?.transactions)) rows = root.transactions;
+  else if (Array.isArray(root?.transaksi)) rows = root.transaksi;
+  else if (Array.isArray(root?.keuangan)) rows = root.keuangan;
+  else if (Array.isArray(root?.finance)) rows = root.finance;
+  else if (Array.isArray(root?.items)) rows = root.items;
+  else if (Array.isArray(root)) rows = root;
+
+  return sortByDateDesc(
+    rows
+      .map((item: any, index: number): FinanceItem | null => {
+        const masuk = toNumber(item?.kasMasuk ?? item?.masuk ?? item?.amountMasuk);
+        const keluar = toNumber(item?.kasKeluar ?? item?.keluar ?? item?.amountKeluar);
+
+        let amount = toNumber(item?.amount ?? item?.nominal ?? item?.jumlah);
+        let type = mapType(String(item?.type ?? item?.jenis ?? item?.transaksi ?? "masuk"));
+
+        if (masuk > 0 || keluar > 0) {
+          if (masuk > 0) {
+            amount = masuk;
+            type = "masuk";
+          } else {
+            amount = keluar;
+            type = "keluar";
+          }
+        }
+
+        if (amount <= 0) return null;
+
+        return {
+          id: String(item?.id ?? `finance-${index + 1}`),
+          category: mapCategory(
+            String(item?.category ?? item?.kategori ?? item?.kas ?? item?.bucket ?? "kas masjid")
+          ),
+          date: String(item?.date ?? item?.tanggal ?? item?.createdAt ?? ""),
+          description: String(
+            item?.description ?? item?.keterangan ?? item?.title ?? "-"
+          ),
+          donor: String(item?.donor ?? item?.donatur ?? ""),
+          type,
+          amount,
+        };
+      })
+      .filter(Boolean) as FinanceItem[]
+  );
 }
 
 function parseArticleResponse(payload: any): ArticleItem[] {
-  const rows = Array.isArray(payload?.articles)
-    ? payload.articles
-    : Array.isArray(payload?.artikel)
-      ? payload.artikel
-      : [];
+  const root = payload?.data ?? payload;
 
-  return rows.map((item: any, index: number) => ({
-    id: String(item.id ?? index + 1),
-    title: item.title || item.judul || "",
-    excerpt: item.excerpt || item.ringkasan || "",
-    category: item.category || item.kategori || "Artikel",
-    date: item.date || item.tanggal || "",
-    author: item.author || item.penulis || "Admin",
-    image: item.image || item.gambar || item.imageUrl || "",
-    published:
-      String(item.published ?? item.publish ?? item.status ?? "publish")
+  const rows = Array.isArray(root?.articles)
+    ? root.articles
+    : Array.isArray(root?.artikel)
+      ? root.artikel
+      : Array.isArray(root?.posts)
+        ? root.posts
+        : Array.isArray(root?.berita)
+          ? root.berita
+          : [];
+
+  return sortByDateDesc(
+    rows.map((item: any, index: number) => ({
+      id: String(item?.id ?? index + 1),
+      title: String(item?.title ?? item?.judul ?? ""),
+      excerpt: String(item?.excerpt ?? item?.ringkasan ?? item?.summary ?? ""),
+      category: String(item?.category ?? item?.kategori ?? "Artikel"),
+      date: String(item?.date ?? item?.tanggal ?? ""),
+      author: String(item?.author ?? item?.penulis ?? "Admin"),
+      image: String(item?.image ?? item?.gambar ?? item?.imageUrl ?? ""),
+      published: String(
+        item?.published ?? item?.publish ?? item?.status ?? "publish"
+      )
         .toLowerCase()
         .includes("publish"),
-  }));
+    }))
+  );
 }
 
 function parseFridayResponse(payload: any): FridaySchedule {
+  const root = payload?.data ?? payload;
   const raw =
-    payload?.fridayPrayer ||
-    payload?.khotibJumat ||
-    payload?.jadwalJumat ||
-    payload?.jumat ||
+    root?.fridayPrayer ||
+    root?.fridayKhutbah ||
+    root?.khotibJumat ||
+    root?.jadwalJumat ||
+    root?.jumat ||
     {};
 
   return {
@@ -151,7 +197,9 @@ function parseFridayResponse(payload: any): FridaySchedule {
     khatib: raw.khatib || raw.namaKhatib || "Ust. Ahmad Fauzi",
     bilal: raw.bilal || raw.namaBilal || "Muhammad Rizki",
     title:
-      raw.title || raw.judulKhutbah || "Memakmurkan Masjid dan Menjaga Ukhuwah Jamaah",
+      raw.title ||
+      raw.judulKhutbah ||
+      "Memakmurkan Masjid dan Menjaga Ukhuwah Jamaah",
   };
 }
 
@@ -313,7 +361,7 @@ function FinanceBucketCard({ bucket }: { bucket: FinanceBucket }) {
   );
 }
 
-function SidebarCard({
+function SectionCard({
   icon,
   eyebrow,
   title,
@@ -337,48 +385,35 @@ function SidebarCard({
           <h3 className="mt-1 text-2xl font-bold text-slate-900">{title}</h3>
         </div>
       </div>
-
       <div className="mt-5">{children}</div>
     </section>
   );
 }
 
-function Input({
-  className = "",
-  ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-emerald-400 ${className}`}
+      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
     />
   );
 }
 
-function Textarea({
-  className = "",
-  ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 ${className}`}
+      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
     />
   );
 }
 
-function Select({
-  className = "",
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-emerald-400 ${className}`}
-    >
-      {children}
-    </select>
+      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
+    />
   );
 }
 
@@ -423,9 +458,7 @@ export default function KeuanganPage() {
   }, []);
 
   const financeBuckets = useMemo<FinanceBucket[]>(() => {
-    const latest = [...financeItems].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    const latest = sortByDateDesc(financeItems);
 
     return [
       {
@@ -468,9 +501,8 @@ export default function KeuanganPage() {
   }, [financeItems]);
 
   const publishedArticles = useMemo(() => {
-    return [...articles]
+    return sortByDateDesc(articles)
       .filter((item) => item.published)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 2);
   }, [articles]);
 
@@ -510,47 +542,65 @@ export default function KeuanganPage() {
           <StatCard title="Total Donasi" value={formatRupiah(totals.donation)} tone="yellow" />
         </div>
 
-        <div className="mt-8 grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-6">
-            {financeBuckets.map((bucket) => (
-              <FinanceBucketCard key={bucket.category} bucket={bucket} />
-            ))}
-          </div>
+        <div className="mt-6">
+          <SectionCard
+            icon={<Landmark className="h-5 w-5" />}
+            eyebrow="Input Admin"
+            title="Tambah Data Keuangan"
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Kategori Kas
+                </label>
+                <Select defaultValue="Kas Masjid">
+                  <option>Kas Masjid</option>
+                  <option>Kas Pembangunan</option>
+                  <option>Kas Anak Yatim</option>
+                </Select>
+              </div>
 
-          <aside className="space-y-6 xl:sticky xl:top-6">
-            <SidebarCard icon={<Landmark className="h-5 w-5" />} eyebrow="Input Admin" title="Tambah Data Keuangan">
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Kategori Kas</label>
-                  <Select defaultValue="Kas Masjid">
-                    <option>Kas Masjid</option>
-                    <option>Kas Pembangunan</option>
-                    <option>Kas Anak Yatim</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Jenis Transaksi</label>
-                  <Select defaultValue="Kas Masuk">
-                    <option>Kas Masuk</option>
-                    <option>Kas Keluar</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Tanggal</label>
-                  <Input type="date" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Keterangan</label>
-                  <Input placeholder="Contoh: Infaq Jumat" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Nominal</label>
-                  <Input placeholder="Contoh: 1.000.000" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Donatur</label>
-                  <Input placeholder="Kosongkan jika tidak ada" />
-                </div>
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Jenis Transaksi
+                </label>
+                <Select defaultValue="Kas Masuk">
+                  <option>Kas Masuk</option>
+                  <option>Kas Keluar</option>
+                </Select>
+              </div>
+
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tanggal
+                </label>
+                <Input type="date" />
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Keterangan
+                </label>
+                <Input placeholder="Contoh: Infaq Jumat" />
+              </div>
+
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Nominal
+                </label>
+                <Input placeholder="Contoh: 1.000.000" />
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Donatur
+                </label>
+                <Input placeholder="Kosongkan jika tidak ada" />
+              </div>
+
+              <div className="flex items-end">
                 <button
                   type="button"
                   className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
@@ -559,77 +609,126 @@ export default function KeuanganPage() {
                   Simpan Data
                 </button>
               </div>
-            </SidebarCard>
+            </div>
+          </SectionCard>
+        </div>
 
-            <SidebarCard icon={<Newspaper className="h-5 w-5" />} eyebrow="Kelola Artikel" title="Tambah Artikel">
-              <div className="space-y-4">
+        <div className="mt-8 space-y-6">
+          {financeBuckets.map((bucket) => (
+            <FinanceBucketCard key={bucket.category} bucket={bucket} />
+          ))}
+        </div>
+
+        <div className="mt-8 grid gap-8">
+          <SectionCard
+            icon={<Newspaper className="h-5 w-5" />}
+            eyebrow="Kelola Artikel"
+            title="Tambah Artikel"
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+              <div className="md:col-span-2 xl:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Judul
+                </label>
+                <Input />
+              </div>
+
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Kategori
+                </label>
+                <Input placeholder="Artikel" />
+              </div>
+
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tanggal
+                </label>
+                <Input type="date" />
+              </div>
+
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Penulis
+                </label>
+                <Input placeholder="Admin" />
+              </div>
+
+              <div className="xl:col-span-1">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Status Publish
+                </label>
+                <Select defaultValue="Publish">
+                  <option>Publish</option>
+                  <option>Draft</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Ringkasan
+                </label>
+                <Textarea rows={4} />
+              </div>
+
+              <div className="flex flex-col gap-4">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Judul</label>
-                  <Input />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Ringkasan</label>
-                  <Textarea rows={4} />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">Kategori</label>
-                    <Input placeholder="Artikel" />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">Tanggal</label>
-                    <Input type="date" />
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">Penulis</label>
-                    <Input placeholder="Admin" />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">Status Publish</label>
-                    <Select defaultValue="Publish">
-                      <option>Publish</option>
-                      <option>Draft</option>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">URL Gambar</label>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    URL Gambar
+                  </label>
                   <Input placeholder="Opsional" />
                 </div>
-                <button
-                  type="button"
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                >
-                  <Save className="h-4 w-4" />
-                  Simpan Artikel
-                </button>
-              </div>
-            </SidebarCard>
 
-            <SidebarCard icon={<CalendarDays className="h-5 w-5" />} eyebrow="Update Khotib Jumat" title="Jadwal Jumat">
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Tanggal Hijriah</label>
-                  <Input defaultValue={friday.hijriDate} />
+                <div className="mt-auto">
+                  <button
+                    type="button"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  >
+                    <Save className="h-4 w-4" />
+                    Simpan Artikel
+                  </button>
                 </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Tanggal Masehi</label>
-                  <Input defaultValue={friday.gregorianDate} />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Nama Khatib</label>
-                  <Input defaultValue={friday.khatib} />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Nama Bilal</label>
-                  <Input defaultValue={friday.bilal} />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">Judul Khutbah</label>
-                  <Textarea rows={3} defaultValue={friday.title} />
-                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            icon={<CalendarDays className="h-5 w-5" />}
+            eyebrow="Update Khotib Jumat"
+            title="Jadwal Jumat"
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tanggal Hijriah
+                </label>
+                <Input defaultValue={friday.hijriDate} />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tanggal Masehi
+                </label>
+                <Input defaultValue={friday.gregorianDate} />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Nama Khatib
+                </label>
+                <Input defaultValue={friday.khatib} />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Nama Bilal
+                </label>
+                <Input defaultValue={friday.bilal} />
+              </div>
+
+              <div className="flex items-end">
                 <button
                   type="button"
                   className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
@@ -638,17 +737,15 @@ export default function KeuanganPage() {
                   Simpan Jadwal Jumat
                 </button>
               </div>
-            </SidebarCard>
+            </div>
 
-            <button
-              type="button"
-              onClick={fetchAll}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {loading ? "Memuat data..." : "Refresh Data"}
-            </button>
-          </aside>
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Judul Khutbah
+              </label>
+              <Textarea rows={3} defaultValue={friday.title} />
+            </div>
+          </SectionCard>
         </div>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-2">
@@ -679,8 +776,12 @@ export default function KeuanganPage() {
                         {formatDate(item.date)}
                       </span>
                     </div>
-                    <h4 className="mt-3 text-xl font-bold text-slate-900">{item.title}</h4>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">{item.excerpt}</p>
+                    <h4 className="mt-3 text-xl font-bold text-slate-900">
+                      {item.title}
+                    </h4>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">
+                      {item.excerpt}
+                    </p>
                   </div>
                 ))
               ) : (
@@ -739,6 +840,17 @@ export default function KeuanganPage() {
               </div>
             </div>
           </section>
+        </div>
+
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={fetchAll}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {loading ? "Memuat data..." : "Refresh Data"}
+          </button>
         </div>
       </section>
     </main>
