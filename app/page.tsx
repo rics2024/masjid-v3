@@ -79,7 +79,7 @@ type FridayKhutbah = {
 const navItems = [
   { label: "Beranda", href: "#beranda" },
   { label: "Program", href: "#program" },
-  { label: "Berita", href: "#berita" },
+  { label: "Galeri", href: "#berita" },
   { label: "Keuangan", href: "/keuangan" },
   { label: "Kontak", href: "#kontak" },
 ];
@@ -93,7 +93,8 @@ const fallbackArticles: ArticleItem[] = [
     category: "Kajian",
     date: "2026-04-21",
     author: "Admin",
-    image: "/images/artikel-kajian.jpg",
+    image:
+      "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1200&q=80",
     link: "#",
     isPublished: true,
   },
@@ -105,7 +106,8 @@ const fallbackArticles: ArticleItem[] = [
     category: "Pengumuman",
     date: "2026-04-19",
     author: "Admin",
-    image: "/images/artikel-keuangan.jpg",
+    image:
+      "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
     link: "#",
     isPublished: true,
   },
@@ -134,24 +136,24 @@ const fallbackFinanceItems: FinanceItem[] = [
     date: "2026-04-29",
     bucket: "kasMasjid",
     type: "masuk",
-    description: "Infaq Jumat",
     amount: 5_000_000,
+    description: "Infaq Jumat",
   },
   {
     id: "2",
     date: "2026-04-26",
     bucket: "kasMasjid",
     type: "keluar",
-    description: "Pembelian alat kebersihan",
     amount: 300_000,
+    description: "Pembelian alat kebersihan",
   },
   {
     id: "3",
     date: "2026-04-28",
     bucket: "kasPembangunan",
     type: "masuk",
-    description: "Donasi pembangunan",
     amount: 10_000_000,
+    description: "Donasi pembangunan",
     donor: "Ahmad Fauzi",
   },
   {
@@ -159,8 +161,8 @@ const fallbackFinanceItems: FinanceItem[] = [
     date: "2026-04-17",
     bucket: "kasAnakYatim",
     type: "masuk",
-    description: "Santunan jamaah",
     amount: 3_000_000,
+    description: "Santunan jamaah",
     donor: "Siti Aminah",
   },
   {
@@ -168,24 +170,24 @@ const fallbackFinanceItems: FinanceItem[] = [
     date: "2026-04-24",
     bucket: "kasMasjid",
     type: "masuk",
-    description: "Infaq kotak amal",
     amount: 1_500_000,
+    description: "Infaq kotak amal",
   },
   {
     id: "6",
     date: "2026-04-20",
     bucket: "kasMasjid",
     type: "keluar",
-    description: "Bayar listrik",
     amount: 1_200_000,
+    description: "Bayar listrik",
   },
   {
     id: "7",
     date: "2026-04-21",
     bucket: "kasPembangunan",
     type: "masuk",
-    description: "Donasi renovasi",
     amount: 2_000_000,
+    description: "Donasi renovasi",
     donor: "Hamba Allah",
   },
   {
@@ -193,8 +195,8 @@ const fallbackFinanceItems: FinanceItem[] = [
     date: "2026-04-19",
     bucket: "kasAnakYatim",
     type: "masuk",
-    description: "Infaq sosial",
     amount: 750_000,
+    description: "Infaq sosial",
     donor: "Muhammad Rizki",
   },
 ];
@@ -279,6 +281,30 @@ const programCatalog = [
     target: 50_000_000,
     bucket: "kasMasjid" as FinanceBucketKey,
     badge: "Aktif",
+  },
+];
+
+const galleryItems = [
+  {
+    id: "gallery-1",
+    title: "Kajian Subuh Ahad",
+    date: "21 April 2026",
+    image:
+      "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    id: "gallery-2",
+    title: "Santunan Anak Yatim",
+    date: "19 April 2026",
+    image:
+      "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
+  },
+  {
+    id: "gallery-3",
+    title: "Kerja Bakti Masjid",
+    date: "17 April 2026",
+    image:
+      "https://images.unsplash.com/photo-1509099836639-18ba1795216d?auto=format&fit=crop&w=1200&q=80",
   },
 ];
 
@@ -477,7 +503,9 @@ function normalizeArticles(raw: unknown[]): ArticleItem[] {
         date: String(entry.date ?? entry.tanggal ?? ""),
         author: String(entry.author ?? entry.penulis ?? "Admin"),
         image: String(
-          entry.image ?? entry.gambar ?? "/images/default-article.jpg"
+          entry.image ??
+            entry.gambar ??
+            "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1200&q=80"
         ),
         link: String(entry.link ?? entry.url ?? "#"),
         isPublished:
@@ -774,7 +802,6 @@ export default function HomePage() {
 
   const mergedArticles = useMemo(() => mergeArticleData(articles), [articles]);
   const latestArticles = useMemo(() => mergedArticles.slice(0, 2), [mergedArticles]);
-  const latestNews = useMemo(() => mergedArticles.slice(0, 3), [mergedArticles]);
 
   const heroStats = useMemo(() => {
     const totalIncoming = bucketSummaries.reduce(
@@ -883,7 +910,7 @@ export default function HomePage() {
               </p>
               <p className="mt-3 text-[16px] leading-7 text-white/95">
                 Website resmi Langgar Kidoel memuat jadwal shalat, informasi
-                program, berita terbaru, dan laporan keuangan jamaah.
+                program, galeri kegiatan, dan laporan keuangan jamaah.
               </p>
             </div>
           </div>
@@ -908,9 +935,9 @@ export default function HomePage() {
             </h2>
 
             <p className="mt-6 max-w-2xl text-[18px] leading-9 text-emerald-50/90 sm:text-[19px]">
-              Temukan informasi kegiatan, jadwal shalat, program donasi, berita
-              terbaru, dan laporan keuangan masjid dalam satu website yang nyaman
-              dibuka dari HP maupun desktop.
+              Temukan informasi kegiatan, jadwal shalat, program donasi, galeri
+              kegiatan, dan laporan keuangan masjid dalam satu website yang
+              nyaman dibuka dari HP maupun desktop.
             </p>
 
             <p className="mt-4 max-w-2xl text-[17px] leading-8 text-emerald-50/80">
@@ -933,7 +960,7 @@ export default function HomePage() {
                 value={`${heroStats.activePrograms}`}
               />
               <MoneyStat
-                label="Berita Terbaru"
+                label="Update Terbaru"
                 value={`${heroStats.totalUpdates}`}
               />
             </div>
@@ -1076,7 +1103,7 @@ export default function HomePage() {
           </div>
           <p className="text-[18px] leading-9 text-slate-600">
             Website ini dirancang agar jamaah dapat dengan mudah mengakses
-            informasi penting seperti berita masjid, laporan keuangan, program
+            informasi penting seperti galeri kegiatan, laporan keuangan, program
             donasi, jadwal kegiatan, dan informasi layanan lainnya dari berbagai
             perangkat.
           </p>
@@ -1095,8 +1122,8 @@ export default function HomePage() {
           />
           <FeatureCard
             icon={<Newspaper className="h-5 w-5" />}
-            title="Portal Berita Masjid"
-            description="Pengumuman, kajian, dan agenda masjid dapat dipublikasikan dengan tampilan yang modern."
+            title="Portal Kegiatan Masjid"
+            description="Galeri kegiatan, kajian, dan dokumentasi aktivitas masjid tampil lebih menarik dan informatif."
           />
           <FeatureCard
             icon={<Landmark className="h-5 w-5" />}
@@ -1190,11 +1217,15 @@ export default function HomePage() {
             >
               <div className="h-52 w-full overflow-hidden bg-emerald-100">
                 <img
-                  src={article.image || "/images/default-article.jpg"}
+                  src={
+                    article.image ||
+                    "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1200&q=80"
+                  }
                   alt={article.title}
                   className="h-full w-full object-cover"
                   onError={(e) => {
-                    e.currentTarget.src = "/images/default-article.jpg";
+                    e.currentTarget.src =
+                      "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1200&q=80";
                   }}
                 />
               </div>
@@ -1321,38 +1352,45 @@ export default function HomePage() {
         <div className="grid gap-6 lg:grid-cols-[1.06fr_0.94fr]">
           <div>
             <span className="inline-flex rounded-full bg-emerald-100 px-4 py-2 text-[12px] font-semibold tracking-[0.18em] text-emerald-700 uppercase">
-              Berita & Pengumuman
+              Galeri Kegiatan
             </span>
             <h3 className="mt-5 text-[38px] font-bold leading-tight text-slate-900 sm:text-[46px]">
-              Informasi terbaru untuk jamaah
+              Dokumentasi kegiatan jamaah dan aktivitas masjid
             </h3>
           </div>
           <p className="text-[18px] leading-9 text-slate-600">
-            Kajian, pengumuman, dan informasi terbaru masjid dapat diakses
-            dengan lebih cepat dan nyaman dari satu halaman yang tertata.
+            Galeri ini menampilkan suasana kegiatan, kajian, santunan, kerja
+            bakti, dan berbagai aktivitas jamaah di Langgar Kidoel.
           </p>
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          {latestNews.map((news) => (
+        <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {galleryItems.map((item) => (
             <article
-              key={news.id}
-              className="rounded-[28px] border border-emerald-100 bg-white p-6 shadow-[0_24px_60px_-40px_rgba(16,185,129,0.2)]"
+              key={item.id}
+              className="overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-[0_24px_60px_-40px_rgba(16,185,129,0.2)]"
             >
-              <div className="flex items-center justify-between gap-4">
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-[12px] font-semibold text-emerald-700">
-                  {news.category}
-                </span>
-                <Newspaper className="h-5 w-5 text-emerald-500" />
+              <div className="h-56 w-full overflow-hidden bg-emerald-100">
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="h-full w-full object-cover"
+                />
               </div>
-              <h3 className="mt-5 text-[28px] font-bold leading-tight text-slate-900">
-                {news.title}
-              </h3>
-              <p className="mt-3 text-[16px] leading-8 text-slate-600">
-                {news.excerpt}
-              </p>
-              <div className="mt-6 text-[14px] text-slate-500">
-                {formatIndoDate(news.date)}
+
+              <div className="p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-[12px] font-semibold text-emerald-700">
+                    Kegiatan Masjid
+                  </span>
+                  <Newspaper className="h-5 w-5 text-emerald-500" />
+                </div>
+
+                <h3 className="mt-4 text-[26px] font-bold leading-tight text-slate-900">
+                  {item.title}
+                </h3>
+
+                <p className="mt-3 text-[15px] text-slate-500">{item.date}</p>
               </div>
             </article>
           ))}
@@ -1551,8 +1589,8 @@ export default function HomePage() {
 
             <p className="mt-5 max-w-md text-[16px] leading-8 text-slate-600">
               Website resmi Langgar Kidoel untuk menyampaikan informasi jamaah,
-              program masjid, jadwal ibadah, berita, serta laporan keuangan
-              secara lebih rapi dan mudah diakses.
+              program masjid, jadwal ibadah, galeri kegiatan, serta laporan
+              keuangan secara lebih rapi dan mudah diakses.
             </p>
           </div>
 
