@@ -83,13 +83,26 @@ function toNumber(value: unknown) {
 
 function mapCategory(value: string): FinanceType {
   const v = value.toLowerCase();
-  if (v.includes("pembangunan") || v.includes("renovasi")) return "pembangunan";
-  if (v.includes("yatim")) return "yatim";
+
+  if (v.includes("kas_pembangunan") || v.includes("pembangunan")) {
+    return "pembangunan";
+  }
+
+  if (v.includes("kas_anak_yatim") || v.includes("anak_yatim") || v.includes("yatim")) {
+    return "yatim";
+  }
+
   return "masjid";
 }
 
 function mapType(value: string): "masuk" | "keluar" {
-  return value.toLowerCase().includes("keluar") ? "keluar" : "masuk";
+  const v = value.toLowerCase();
+
+  if (v.includes("kas_keluar") || v.includes("keluar")) {
+    return "keluar";
+  }
+
+  return "masuk";
 }
 
 function sortByDateDesc<T extends { date: string }>(items: T[]) {
@@ -101,48 +114,49 @@ function sortByDateDesc<T extends { date: string }>(items: T[]) {
 function parseFinanceResponse(payload: any): FinanceItem[] {
   const root = payload?.data ?? payload;
 
-  let rows: any[] = [];
-
-  if (Array.isArray(root?.financeItems)) rows = root.financeItems;
-  else if (Array.isArray(root?.transactions)) rows = root.transactions;
-  else if (Array.isArray(root?.transaksi)) rows = root.transaksi;
-  else if (Array.isArray(root?.keuangan)) rows = root.keuangan;
-  else if (Array.isArray(root?.finance)) rows = root.finance;
-  else if (Array.isArray(root?.items)) rows = root.items;
-  else if (Array.isArray(root)) rows = root;
+  const rows = Array.isArray(root?.financeItems)
+    ? root.financeItems
+    : Array.isArray(root?.transactions)
+      ? root.transactions
+      : Array.isArray(root?.transaksi)
+        ? root.transaksi
+        : Array.isArray(root?.keuangan)
+          ? root.keuangan
+          : Array.isArray(root?.finance)
+            ? root.finance
+            : Array.isArray(root?.items)
+              ? root.items
+              : [];
 
   return sortByDateDesc(
     rows
       .map((item: any, index: number): FinanceItem | null => {
-        const masuk = toNumber(item?.kasMasuk ?? item?.masuk ?? item?.amountMasuk);
-        const keluar = toNumber(item?.kasKeluar ?? item?.keluar ?? item?.amountKeluar);
-
-        let amount = toNumber(item?.amount ?? item?.nominal ?? item?.jumlah);
-        let type = mapType(String(item?.type ?? item?.jenis ?? item?.transaksi ?? "masuk"));
-
-        if (masuk > 0 || keluar > 0) {
-          if (masuk > 0) {
-            amount = masuk;
-            type = "masuk";
-          } else {
-            amount = keluar;
-            type = "keluar";
-          }
-        }
-
+        const amount = toNumber(item?.amount ?? item?.nominal ?? item?.jumlah);
         if (amount <= 0) return null;
 
         return {
           id: String(item?.id ?? `finance-${index + 1}`),
           category: mapCategory(
-            String(item?.category ?? item?.kategori ?? item?.kas ?? item?.bucket ?? "kas masjid")
+            String(
+              item?.bucket ??
+                item?.category ??
+                item?.kategori ??
+                item?.kas ??
+                "kas_masjid"
+            )
           ),
           date: String(item?.date ?? item?.tanggal ?? item?.createdAt ?? ""),
           description: String(
-            item?.description ?? item?.keterangan ?? item?.title ?? "-"
+            item?.description ??
+              item?.keterangan ??
+              item?.title ??
+              item?.note ??
+              "-"
           ),
-          donor: String(item?.donor ?? item?.donatur ?? ""),
-          type,
+          donor: String(item?.donor ?? item?.donatur ?? item?.donorName ?? ""),
+          type: mapType(
+            String(item?.type ?? item?.jenis ?? item?.transaksi ?? "kas_masuk")
+          ),
           amount,
         };
       })
@@ -172,11 +186,7 @@ function parseArticleResponse(payload: any): ArticleItem[] {
       date: String(item?.date ?? item?.tanggal ?? ""),
       author: String(item?.author ?? item?.penulis ?? "Admin"),
       image: String(item?.image ?? item?.gambar ?? item?.imageUrl ?? ""),
-      published: String(
-        item?.published ?? item?.publish ?? item?.status ?? "publish"
-      )
-        .toLowerCase()
-        .includes("publish"),
+      published: Boolean(item?.isPublished ?? item?.published ?? true),
     }))
   );
 }
