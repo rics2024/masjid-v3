@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 type FinanceType = "masjid" | "pembangunan" | "yatim";
+type FinanceTransactionType = "masuk" | "keluar";
 
 type FinanceItem = {
   id: string;
@@ -20,7 +21,7 @@ type FinanceItem = {
   date: string;
   description: string;
   donor?: string;
-  type: "masuk" | "keluar";
+  type: FinanceTransactionType;
   amount: number;
 };
 
@@ -72,6 +73,14 @@ function formatDate(dateString: string) {
   });
 }
 
+function todayInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function toNumber(value: unknown) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
@@ -79,6 +88,16 @@ function toNumber(value: unknown) {
     return Number(clean || 0);
   }
   return 0;
+}
+
+function formatNumberInput(value: string) {
+  const raw = value.replace(/[^\d]/g, "");
+  if (!raw) return "";
+  return new Intl.NumberFormat("id-ID").format(Number(raw));
+}
+
+function parseNumberInput(value: string) {
+  return Number(value.replace(/[^\d]/g, "")) || 0;
 }
 
 function mapCategory(value: string): FinanceType {
@@ -95,7 +114,7 @@ function mapCategory(value: string): FinanceType {
   return "masjid";
 }
 
-function mapType(value: string): "masuk" | "keluar" {
+function mapType(value: string): FinanceTransactionType {
   const v = value.toLowerCase();
 
   if (v.includes("kas_keluar") || v.includes("keluar")) {
@@ -153,7 +172,9 @@ function parseFinanceResponse(payload: any): FinanceItem[] {
               item?.note ??
               "-"
           ),
-          donor: String(item?.donor ?? item?.donatur ?? item?.donorName ?? ""),
+          donor: String(
+            item?.donor ?? item?.donatur ?? item?.donorName ?? item?.donorname ?? ""
+          ),
           type: mapType(
             String(item?.type ?? item?.jenis ?? item?.transaksi ?? "kas_masuk")
           ),
@@ -430,6 +451,11 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 export default function KeuanganPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [submittingFinance, setSubmittingFinance] = useState(false);
+  const [submittingArticle, setSubmittingArticle] = useState(false);
+  const [submittingFriday, setSubmittingFriday] = useState(false);
+
+  const [notice, setNotice] = useState("");
 
   const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
   const [articles, setArticles] = useState<ArticleItem[]>([]);
@@ -441,22 +467,67 @@ export default function KeuanganPage() {
     title: "Memakmurkan Masjid dan Menjaga Ukhuwah Jamaah",
   });
 
-  const fetchAll = async () => {
+  const [financeForm, setFinanceForm] = useState({
+    bucket: "Kas Masjid",
+    type: "Kas Masuk",
+    date: todayInputValue(),
+    description: "",
+    amount: "",
+    donor: "",
+  });
+
+  const [articleForm, setArticleForm] = useState({
+    title: "",
+    excerpt: "",
+    category: "Artikel",
+    date: todayInputValue(),
+    author: "Admin",
+    image: "",
+    publish: "Publish",
+  });
+
+  const [fridayForm, setFridayForm] = useState({
+    hijriDate: "",
+    gregorianDate: "",
+    khatib: "",
+    bilal: "",
+    title: "",
+  });
+
+  const fetchAll = async (manual = false) => {
     if (!GAS_URL) {
       setLoading(false);
+      setNotice("NEXT_PUBLIC_GAS_URL belum diisi.");
       return;
     }
 
     try {
-      setRefreshing(true);
+      if (manual) {
+        setRefreshing(true);
+      }
+
       const res = await fetch(GAS_URL, { cache: "no-store" });
       const json = await res.json();
 
-      setFinanceItems(parseFinanceResponse(json));
-      setArticles(parseArticleResponse(json));
-      setFriday(parseFridayResponse(json));
+      const financeParsed = parseFinanceResponse(json);
+      const articleParsed = parseArticleResponse(json);
+      const fridayParsed = parseFridayResponse(json);
+
+      if (financeParsed.length > 0) {
+        setFinanceItems(financeParsed);
+      }
+      setArticles(articleParsed);
+      setFriday(fridayParsed);
+      setFridayForm({
+        hijriDate: fridayParsed.hijriDate,
+        gregorianDate: fridayParsed.gregorianDate,
+        khatib: fridayParsed.khatib,
+        bilal: fridayParsed.bilal,
+        title: fridayParsed.title,
+      });
     } catch (error) {
       console.error("Gagal memuat data:", error);
+      setNotice("Gagal memuat data dari spreadsheet.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -464,7 +535,7 @@ export default function KeuanganPage() {
   };
 
   useEffect(() => {
-    fetchAll();
+    fetchAll(false);
   }, []);
 
   const financeBuckets = useMemo<FinanceBucket[]>(() => {
@@ -516,6 +587,180 @@ export default function KeuanganPage() {
       .slice(0, 2);
   }, [articles]);
 
+  async function postJson(payload: Record<string, unknown>) {
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json();
+    return json;
+  }
+
+  async function handleSubmitFinance(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setNotice("");
+
+    if (!financeForm.description.trim()) {
+      setNotice("Keterangan transaksi wajib diisi.");
+      return;
+    }
+
+    const amount = parseNumberInput(financeForm.amount);
+    if (amount <= 0) {
+      setNotice("Nominal transaksi wajib diisi.");
+      return;
+    }
+
+    try {
+      setSubmittingFinance(true);
+
+      const bucketMap: Record<string, string> = {
+        "Kas Masjid": "kas_masjid",
+        "Kas Pembangunan": "kas_pembangunan",
+        "Kas Anak Yatim": "kas_anak_yatim",
+      };
+
+      const typeMap: Record<string, string> = {
+        "Kas Masuk": "kas_masuk",
+        "Kas Keluar": "kas_keluar",
+      };
+
+      const result = await postJson({
+        action: "createFinance",
+        id: `trx-${Date.now()}`,
+        tanggal: financeForm.date,
+        bucket: bucketMap[financeForm.bucket] || "kas_masjid",
+        type: typeMap[financeForm.type] || "kas_masuk",
+        keterangan: financeForm.description,
+        jumlah: amount,
+        donatur: financeForm.donor.trim(),
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.message || "Gagal menyimpan data keuangan.");
+      }
+
+      setNotice("Data keuangan berhasil disimpan.");
+      setFinanceForm({
+        bucket: "Kas Masjid",
+        type: "Kas Masuk",
+        date: todayInputValue(),
+        description: "",
+        amount: "",
+        donor: "",
+      });
+
+      await fetchAll(true);
+    } catch (error) {
+      console.error(error);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Gagal menyimpan data keuangan."
+      );
+    } finally {
+      setSubmittingFinance(false);
+    }
+  }
+
+  async function handleSubmitArticle(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setNotice("");
+
+    if (!articleForm.title.trim()) {
+      setNotice("Judul artikel wajib diisi.");
+      return;
+    }
+
+    if (!articleForm.excerpt.trim()) {
+      setNotice("Ringkasan artikel wajib diisi.");
+      return;
+    }
+
+    try {
+      setSubmittingArticle(true);
+
+      const result = await postJson({
+        action: "createArticle",
+        id: `article-${Date.now()}`,
+        title: articleForm.title,
+        excerpt: articleForm.excerpt,
+        category: articleForm.category,
+        date: articleForm.date,
+        author: articleForm.author,
+        image: articleForm.image,
+        isPublished: articleForm.publish === "Publish",
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.message || "Gagal menyimpan artikel.");
+      }
+
+      setNotice("Artikel berhasil disimpan.");
+      setArticleForm({
+        title: "",
+        excerpt: "",
+        category: "Artikel",
+        date: todayInputValue(),
+        author: "Admin",
+        image: "",
+        publish: "Publish",
+      });
+
+      await fetchAll(true);
+    } catch (error) {
+      console.error(error);
+      setNotice(
+        error instanceof Error ? error.message : "Gagal menyimpan artikel."
+      );
+    } finally {
+      setSubmittingArticle(false);
+    }
+  }
+
+  async function handleSubmitFriday(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setNotice("");
+
+    if (!fridayForm.khatib.trim()) {
+      setNotice("Nama khatib wajib diisi.");
+      return;
+    }
+
+    try {
+      setSubmittingFriday(true);
+
+      const result = await postJson({
+        action: "updateFridayKhutbah",
+        tanggalHijriah: fridayForm.hijriDate,
+        tanggalMasehi: fridayForm.gregorianDate,
+        khotib: fridayForm.khatib,
+        bilal: fridayForm.bilal,
+        judulKhutbah: fridayForm.title,
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.message || "Gagal menyimpan jadwal Jumat.");
+      }
+
+      setNotice("Jadwal khotib Jumat berhasil diperbarui.");
+      await fetchAll(true);
+    } catch (error) {
+      console.error(error);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Gagal menyimpan jadwal khotib Jumat."
+      );
+    } finally {
+      setSubmittingFriday(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50">
       <section className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-500">
@@ -545,11 +790,32 @@ export default function KeuanganPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {notice ? (
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {notice}
+          </div>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Total Pemasukan" value={formatRupiah(totals.income)} tone="green" />
-          <StatCard title="Total Pengeluaran" value={formatRupiah(totals.expense)} tone="red" />
-          <StatCard title="Saldo Aktif" value={formatRupiah(totals.balance)} />
-          <StatCard title="Total Donasi" value={formatRupiah(totals.donation)} tone="yellow" />
+          <StatCard
+            title="Total Pemasukan"
+            value={loading ? "Memuat..." : formatRupiah(totals.income)}
+            tone="green"
+          />
+          <StatCard
+            title="Total Pengeluaran"
+            value={loading ? "Memuat..." : formatRupiah(totals.expense)}
+            tone="red"
+          />
+          <StatCard
+            title="Saldo Aktif"
+            value={loading ? "Memuat..." : formatRupiah(totals.balance)}
+          />
+          <StatCard
+            title="Total Donasi"
+            value={loading ? "Memuat..." : formatRupiah(totals.donation)}
+            tone="yellow"
+          />
         </div>
 
         <div className="mt-6">
@@ -558,75 +824,157 @@ export default function KeuanganPage() {
             eyebrow="Input Admin"
             title="Tambah Data Keuangan"
           >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Kategori Kas
-                </label>
-                <Select defaultValue="Kas Masjid">
-                  <option>Kas Masjid</option>
-                  <option>Kas Pembangunan</option>
-                  <option>Kas Anak Yatim</option>
-                </Select>
+            <form onSubmit={handleSubmitFinance}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Kategori Kas
+                  </label>
+                  <Select
+                    value={financeForm.bucket}
+                    onChange={(e) =>
+                      setFinanceForm((prev) => ({
+                        ...prev,
+                        bucket: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Kas Masjid</option>
+                    <option>Kas Pembangunan</option>
+                    <option>Kas Anak Yatim</option>
+                  </Select>
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Jenis Transaksi
+                  </label>
+                  <Select
+                    value={financeForm.type}
+                    onChange={(e) =>
+                      setFinanceForm((prev) => ({
+                        ...prev,
+                        type: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Kas Masuk</option>
+                    <option>Kas Keluar</option>
+                  </Select>
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Tanggal
+                  </label>
+                  <Input
+                    type="date"
+                    value={financeForm.date}
+                    onChange={(e) =>
+                      setFinanceForm((prev) => ({
+                        ...prev,
+                        date: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="md:col-span-2 xl:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Keterangan
+                  </label>
+                  <Input
+                    placeholder="Contoh: Infaq Jumat"
+                    value={financeForm.description}
+                    onChange={(e) =>
+                      setFinanceForm((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Nominal
+                  </label>
+                  <Input
+                    placeholder="Contoh: 1.000.000"
+                    inputMode="numeric"
+                    value={financeForm.amount}
+                    onChange={(e) =>
+                      setFinanceForm((prev) => ({
+                        ...prev,
+                        amount: formatNumberInput(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
               </div>
 
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Jenis Transaksi
-                </label>
-                <Select defaultValue="Kas Masuk">
-                  <option>Kas Masuk</option>
-                  <option>Kas Keluar</option>
-                </Select>
-              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Donatur
+                  </label>
+                  <Input
+                    placeholder="Kosongkan jika tidak ada"
+                    value={financeForm.donor}
+                    onChange={(e) =>
+                      setFinanceForm((prev) => ({
+                        ...prev,
+                        donor: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
 
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Tanggal
-                </label>
-                <Input type="date" />
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={submittingFinance}
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <Save className="h-4 w-4" />
+                    {submittingFinance ? "Menyimpan..." : "Simpan Data"}
+                  </button>
+                </div>
               </div>
-
-              <div className="md:col-span-2 xl:col-span-2">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Keterangan
-                </label>
-                <Input placeholder="Contoh: Infaq Jumat" />
-              </div>
-
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Nominal
-                </label>
-                <Input placeholder="Contoh: 1.000.000" />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Donatur
-                </label>
-                <Input placeholder="Kosongkan jika tidak ada" />
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                >
-                  <Save className="h-4 w-4" />
-                  Simpan Data
-                </button>
-              </div>
-            </div>
+            </form>
           </SectionCard>
         </div>
 
         <div className="mt-8 space-y-6">
-          {financeBuckets.map((bucket) => (
-            <FinanceBucketCard key={bucket.category} bucket={bucket} />
-          ))}
+          {loading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <section
+                key={index}
+                className="rounded-[28px] border border-emerald-100 bg-white p-6 shadow-sm animate-pulse"
+              >
+                <div className="h-8 w-48 rounded bg-slate-200" />
+                <div className="mt-3 h-4 w-32 rounded bg-slate-200" />
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl bg-slate-100 p-4">
+                    <div className="h-3 w-16 rounded bg-slate-200" />
+                    <div className="mt-3 h-6 w-32 rounded bg-slate-200" />
+                  </div>
+                  <div className="rounded-2xl bg-slate-100 p-4">
+                    <div className="h-3 w-16 rounded bg-slate-200" />
+                    <div className="mt-3 h-6 w-32 rounded bg-slate-200" />
+                  </div>
+                  <div className="rounded-2xl bg-slate-100 p-4">
+                    <div className="h-3 w-16 rounded bg-slate-200" />
+                    <div className="mt-3 h-6 w-32 rounded bg-slate-200" />
+                  </div>
+                </div>
+              </section>
+            ))
+          ) : (
+            financeBuckets.map((bucket) => (
+              <FinanceBucketCard key={bucket.category} bucket={bucket} />
+            ))
+          )}
         </div>
 
         <div className="mt-8 grid gap-8">
@@ -635,73 +983,137 @@ export default function KeuanganPage() {
             eyebrow="Kelola Artikel"
             title="Tambah Artikel"
           >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-              <div className="md:col-span-2 xl:col-span-2">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Judul
-                </label>
-                <Input />
+            <form onSubmit={handleSubmitArticle}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                <div className="md:col-span-2 xl:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Judul
+                  </label>
+                  <Input
+                    value={articleForm.title}
+                    onChange={(e) =>
+                      setArticleForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Kategori
+                  </label>
+                  <Input
+                    placeholder="Artikel"
+                    value={articleForm.category}
+                    onChange={(e) =>
+                      setArticleForm((prev) => ({
+                        ...prev,
+                        category: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Tanggal
+                  </label>
+                  <Input
+                    type="date"
+                    value={articleForm.date}
+                    onChange={(e) =>
+                      setArticleForm((prev) => ({
+                        ...prev,
+                        date: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Penulis
+                  </label>
+                  <Input
+                    placeholder="Admin"
+                    value={articleForm.author}
+                    onChange={(e) =>
+                      setArticleForm((prev) => ({
+                        ...prev,
+                        author: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="xl:col-span-1">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Status Publish
+                  </label>
+                  <Select
+                    value={articleForm.publish}
+                    onChange={(e) =>
+                      setArticleForm((prev) => ({
+                        ...prev,
+                        publish: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Publish</option>
+                    <option>Draft</option>
+                  </Select>
+                </div>
               </div>
 
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Kategori
-                </label>
-                <Input placeholder="Artikel" />
-              </div>
-
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Tanggal
-                </label>
-                <Input type="date" />
-              </div>
-
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Penulis
-                </label>
-                <Input placeholder="Admin" />
-              </div>
-
-              <div className="xl:col-span-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Status Publish
-                </label>
-                <Select defaultValue="Publish">
-                  <option>Publish</option>
-                  <option>Draft</option>
-                </Select>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Ringkasan
-                </label>
-                <Textarea rows={4} />
-              </div>
-
-              <div className="flex flex-col gap-4">
+              <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    URL Gambar
+                    Ringkasan
                   </label>
-                  <Input placeholder="Opsional" />
+                  <Textarea
+                    rows={4}
+                    value={articleForm.excerpt}
+                    onChange={(e) =>
+                      setArticleForm((prev) => ({
+                        ...prev,
+                        excerpt: e.target.value,
+                      }))
+                    }
+                  />
                 </div>
 
-                <div className="mt-auto">
-                  <button
-                    type="button"
-                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                  >
-                    <Save className="h-4 w-4" />
-                    Simpan Artikel
-                  </button>
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      URL Gambar
+                    </label>
+                    <Input
+                      placeholder="Opsional"
+                      value={articleForm.image}
+                      onChange={(e) =>
+                        setArticleForm((prev) => ({
+                          ...prev,
+                          image: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-auto">
+                    <button
+                      type="submit"
+                      disabled={submittingArticle}
+                      className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      <Save className="h-4 w-4" />
+                      {submittingArticle ? "Menyimpan..." : "Simpan Artikel"}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </form>
           </SectionCard>
 
           <SectionCard
@@ -709,52 +1121,96 @@ export default function KeuanganPage() {
             eyebrow="Update Khotib Jumat"
             title="Jadwal Jumat"
           >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <div>
+            <form onSubmit={handleSubmitFriday}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Tanggal Hijriah
+                  </label>
+                  <Input
+                    value={fridayForm.hijriDate}
+                    onChange={(e) =>
+                      setFridayForm((prev) => ({
+                        ...prev,
+                        hijriDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Tanggal Masehi
+                  </label>
+                  <Input
+                    value={fridayForm.gregorianDate}
+                    onChange={(e) =>
+                      setFridayForm((prev) => ({
+                        ...prev,
+                        gregorianDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Nama Khatib
+                  </label>
+                  <Input
+                    value={fridayForm.khatib}
+                    onChange={(e) =>
+                      setFridayForm((prev) => ({
+                        ...prev,
+                        khatib: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Nama Bilal
+                  </label>
+                  <Input
+                    value={fridayForm.bilal}
+                    onChange={(e) =>
+                      setFridayForm((prev) => ({
+                        ...prev,
+                        bilal: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={submittingFriday}
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <Save className="h-4 w-4" />
+                    {submittingFriday ? "Menyimpan..." : "Simpan Jadwal Jumat"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Tanggal Hijriah
+                  Judul Khutbah
                 </label>
-                <Input defaultValue={friday.hijriDate} />
+                <Textarea
+                  rows={3}
+                  value={fridayForm.title}
+                  onChange={(e) =>
+                    setFridayForm((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                />
               </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Tanggal Masehi
-                </label>
-                <Input defaultValue={friday.gregorianDate} />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Nama Khatib
-                </label>
-                <Input defaultValue={friday.khatib} />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Nama Bilal
-                </label>
-                <Input defaultValue={friday.bilal} />
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                >
-                  <Save className="h-4 w-4" />
-                  Simpan Jadwal Jumat
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Judul Khutbah
-              </label>
-              <Textarea rows={3} defaultValue={friday.title} />
-            </div>
+            </form>
           </SectionCard>
         </div>
 
@@ -855,11 +1311,11 @@ export default function KeuanganPage() {
         <div className="mt-6">
           <button
             type="button"
-            onClick={fetchAll}
+            onClick={() => fetchAll(true)}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            {loading ? "Memuat data..." : "Refresh Data"}
+            {loading ? "Memuat data..." : refreshing ? "Menyegarkan..." : "Refresh Data"}
           </button>
         </div>
       </section>
